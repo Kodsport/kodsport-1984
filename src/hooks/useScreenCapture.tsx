@@ -12,8 +12,8 @@ interface ScreenCaptureState {
 }
 
 const VIDEO_SEGMENT_DURATION_MS = 60000; // 1 minute per video segment
-const BROADCAST_INTERVAL_MS = 1000; // Broadcast every 1 second
-const VIDEO_FPS = 1; // 1 frame per second for video recording
+const BROADCAST_INTERVAL_MS = 500; // Broadcast every 0.5 seconds (twice per second)
+const VIDEO_FPS = 2; // 2 frames per second for video recording
 
 export const useScreenCapture = () => {
   const { user } = useAuth();
@@ -36,12 +36,12 @@ export const useScreenCapture = () => {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isRecordingRef = useRef<boolean>(false);
 
-  // Compress image for broadcast (smaller size for realtime)
-  const compressImageForBroadcast = useCallback(async (
+  // Capture image for broadcast (high quality for readability)
+  const captureImageForBroadcast = useCallback(async (
     video: HTMLVideoElement,
     canvas: HTMLCanvasElement,
-    maxWidth: number = 640,
-    quality: number = 0.4
+    maxWidth: number = 1920,
+    quality: number = 0.85
   ): Promise<string | null> => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
@@ -62,8 +62,8 @@ export const useScreenCapture = () => {
     canvas.height = targetHeight;
     ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
-    // Return as base64 for broadcast
-    return canvas.toDataURL('image/jpeg', quality);
+    // Return as base64 for broadcast - higher quality PNG for better text readability
+    return canvas.toDataURL('image/png');
   }, []);
 
   // Broadcast screenshot to admins via Supabase Realtime
@@ -75,7 +75,7 @@ export const useScreenCapture = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    const imageData = await compressImageForBroadcast(video, canvas, 640, 0.4);
+    const imageData = await captureImageForBroadcast(video, canvas, 1920, 0.85);
     if (!imageData) return;
 
     // Broadcast via Supabase Realtime channel
@@ -97,9 +97,9 @@ export const useScreenCapture = () => {
       .from('competitors')
       .update({ last_seen: new Date().toISOString(), status: 'online' })
       .eq('id', state.competitorId);
-  }, [user, state.competitorId, compressImageForBroadcast]);
+  }, [user, state.competitorId, captureImageForBroadcast]);
 
-  // Draw frame to recording canvas at 1 FPS
+  // Draw frame to recording canvas at higher quality
   const drawFrameToRecordingCanvas = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -108,8 +108,8 @@ export const useScreenCapture = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size for video recording (1280px max width)
-    const maxWidth = 1280;
+    // Set canvas size for video recording (full resolution up to 1920px)
+    const maxWidth = 1920;
     let targetWidth = video.videoWidth;
     let targetHeight = video.videoHeight;
 
@@ -185,7 +185,7 @@ export const useScreenCapture = () => {
     
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType,
-      videoBitsPerSecond: 500000, // 500kbps for compressed video
+      videoBitsPerSecond: 2500000, // 2.5 Mbps for readable video
     });
 
     recordedChunksRef.current = [];
@@ -207,11 +207,11 @@ export const useScreenCapture = () => {
       }
     };
 
-    mediaRecorder.start(1000); // Collect data every second
+    mediaRecorder.start(500); // Collect data every 0.5 seconds
     mediaRecorderRef.current = mediaRecorder;
 
-    // Draw frames at 1 FPS for the video
-    videoIntervalRef.current = setInterval(drawFrameToRecordingCanvas, 1000);
+    // Draw frames at 2 FPS for the video (every 500ms)
+    videoIntervalRef.current = setInterval(drawFrameToRecordingCanvas, 500);
 
     // Schedule segment end after 1 minute
     segmentTimeoutRef.current = setTimeout(() => {
