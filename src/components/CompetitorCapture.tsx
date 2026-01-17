@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +12,35 @@ type Room = typeof ROOMS[number];
 
 export const CompetitorCapture = () => {
   const [room, setRoom] = useState<Room>('Rum 41');
-  const { isCapturing, error, captureCount, startCapture, stopCapture } = useScreenCapture();
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const { isCapturing, error, startTime, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Deltagare';
+
+  // Timer effect
+  useEffect(() => {
+    if (!isCapturing || !startTime) {
+      setElapsedTime(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isCapturing, startTime]);
+
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleStart = () => {
     if (room) {
@@ -91,7 +116,7 @@ export const CompetitorCapture = () => {
                   <span className="font-medium text-success">Inspelning aktiv</span>
                 </div>
                 <span className="text-sm text-muted-foreground font-mono">
-                  {captureCount} bilder
+                  {formatTime(elapsedTime)}
                 </span>
               </div>
 

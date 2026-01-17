@@ -7,7 +7,7 @@ interface ScreenCaptureState {
   stream: MediaStream | null;
   competitorId: string | null;
   error: string | null;
-  captureCount: number;
+  startTime: number | null;
 }
 
 export const useScreenCapture = () => {
@@ -17,7 +17,7 @@ export const useScreenCapture = () => {
     stream: null,
     competitorId: null,
     error: null,
-    captureCount: 0,
+    startTime: null,
   });
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -101,8 +101,6 @@ export const useScreenCapture = () => {
       .from('competitors')
       .update({ last_seen: new Date().toISOString(), status: 'online' })
       .eq('id', state.competitorId);
-
-    setState((prev) => ({ ...prev, captureCount: prev.captureCount + 1 }));
   }, [user, state.competitorId, compressImage]);
 
   const startCapture = async (room: string = 'Rum 41') => {
@@ -161,7 +159,7 @@ export const useScreenCapture = () => {
         stream,
         competitorId: competitor.id,
         error: null,
-        captureCount: 0,
+        startTime: Date.now(),
       });
 
       // Handle stream ending (user clicks "Stop sharing")
@@ -205,7 +203,7 @@ export const useScreenCapture = () => {
       stream: null,
       competitorId: null,
       error: null,
-      captureCount: 0,
+      startTime: null,
     });
   };
 
