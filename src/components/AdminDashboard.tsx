@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from './StatusBadge';
+import { RecordingsViewer } from './RecordingsViewer';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -23,6 +24,7 @@ export const AdminDashboard = () => {
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);
   const [liveScreenshots, setLiveScreenshots] = useState<Map<string, string>>(new Map());
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
+  const [viewingRecordings, setViewingRecordings] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -463,13 +465,35 @@ export const AdminDashboard = () => {
               )}
             </div>
 
-            {/* Video recordings info */}
-            <div className="mt-4 p-3 bg-secondary/50 rounded-lg flex items-center gap-2 text-sm text-muted-foreground">
-              <Video className="h-4 w-4" />
-              <span>Inspelningar sparas automatiskt varje minut för granskning efter tävlingen</span>
+            {/* Video recordings button */}
+            <div className="mt-4 flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setViewingRecordings(selectedCompetitor);
+                  setSelectedCompetitor(null);
+                }}
+                className="flex-1"
+              >
+                <Video className="h-4 w-4 mr-2" />
+                Visa inspelningar
+              </Button>
             </div>
+
+            <p className="mt-3 text-xs text-muted-foreground text-center">
+              Inspelningar sparas automatiskt varje minut för granskning efter tävlingen
+            </p>
           </div>
         </div>
+      )}
+
+      {/* Recordings Viewer Modal */}
+      {viewingRecordings && (
+        <RecordingsViewer
+          competitorId={viewingRecordings.id}
+          competitorName={viewingRecordings.name}
+          onClose={() => setViewingRecordings(null)}
+        />
       )}
     </div>
   );
