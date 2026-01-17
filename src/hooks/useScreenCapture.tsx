@@ -185,7 +185,7 @@ export const useScreenCapture = () => {
     
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType,
-      videoBitsPerSecond: 2500000, // 2.5 Mbps for readable video
+      videoBitsPerSecond: 1000000, // 1 Mbps for lower storage usage
     });
 
     recordedChunksRef.current = [];
