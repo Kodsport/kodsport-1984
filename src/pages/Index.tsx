@@ -7,30 +7,29 @@ import { Logo } from '@/components/Logo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, Monitor } from 'lucide-react';
-
 const Index = () => {
-  const { user, isAdmin, loading } = useAuth();
-
+  const {
+    user,
+    isAdmin,
+    loading
+  } = useAuth();
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+    return <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+      </div>;
   }
 
   // Inte inloggad - visa inloggningsformulär
   if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col">
+    return <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md animate-fade-in">
             <div className="text-center mb-8">
               <div className="flex justify-center mb-6">
                 <Logo />
               </div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">
-                Anti-fusk Monitor
+              <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">
+                ​bokstavligen 1984, du vågar inte fuska                                  
               </h1>
               <p className="text-muted-foreground">
                 Logga in för att börja övervaka eller delta i tävlingen
@@ -48,14 +47,12 @@ const Index = () => {
             </p>
           </div>
         </div>
-      </div>
-    );
+      </div>;
   }
 
   // Adminvy
   if (isAdmin) {
-    return (
-      <div className="min-h-screen bg-background">
+    return <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-8">
           <Tabs defaultValue="monitor" className="space-y-6">
@@ -81,13 +78,11 @@ const Index = () => {
             </TabsContent>
           </Tabs>
         </main>
-      </div>
-    );
+      </div>;
   }
 
   // Vanlig användarvy (deltagare)
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-lg mx-auto animate-fade-in">
@@ -103,8 +98,6 @@ const Index = () => {
           <CompetitorCapture />
         </div>
       </main>
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
