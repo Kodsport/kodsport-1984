@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,48 +16,116 @@ interface CompetitorWithScreenshot extends Competitor {
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
 
+// Cache för signerade URLs (5 min)
+const urlCache = new Map<string, { url: string; expires: number }>();
+
 export const AdminDashboard = () => {
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const fetchingRef = useRef(false);
 
-  // Hämta deltagare
-  const fetchCompetitors = useCallback(async () => {
-    const { data } = await supabase
-      .from('competitors')
-      .select('*')
-      .order('last_seen', { ascending: false });
-
-    if (data) {
-      // Hämta senaste skärmbild för varje deltagare
-      const competitorsWithScreenshots = await Promise.all(
-        data.map(async (competitor) => {
-          const { data: screenshots } = await supabase
-            .from('screenshots')
-            .select('storage_path')
-            .eq('competitor_id', competitor.id)
-            .order('captured_at', { ascending: false })
-            .limit(1);
-
-          let latestScreenshot = null;
-          if (screenshots && screenshots.length > 0) {
-            const { data: urlData } = await supabase.storage
-              .from('screenshots')
-              .createSignedUrl(screenshots[0].storage_path, 60);
-            latestScreenshot = urlData?.signedUrl || null;
-          }
-
-          return { ...competitor, latestScreenshot };
-        })
-      );
-
-      setCompetitors(competitorsWithScreenshots);
-      setLastUpdate(new Date());
+  // Hämta signerad URL med cache
+  const getSignedUrl = useCallback(async (storagePath: string): Promise<string | null> => {
+    const now = Date.now();
+    const cached = urlCache.get(storagePath);
+    
+    if (cached && cached.expires > now) {
+      return cached.url;
     }
-    setLoading(false);
+
+    const { data } = await supabase.storage
+      .from('screenshots')
+      .createSignedUrl(storagePath, 300); // 5 min
+
+    if (data?.signedUrl) {
+      urlCache.set(storagePath, { 
+        url: data.signedUrl, 
+        expires: now + 240000 // Cache 4 min
+      });
+      return data.signedUrl;
+    }
+    return null;
   }, []);
+
+  // Hämta deltagare - optimerad
+  const fetchCompetitors = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
+    try {
+      // Hämta endast aktiva deltagare (senaste 24 timmarna)
+      const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+      
+      const { data } = await supabase
+        .from('competitors')
+        .select('*')
+        .gte('last_seen', oneDayAgo)
+        .order('status', { ascending: true }) // Online först
+        .order('last_seen', { ascending: false });
+
+      if (data) {
+        // Hämta senaste skärmbild för varje deltagare (batch query)
+        const competitorIds = data.map(c => c.id);
+        
+        // En enda query för alla screenshots
+        const { data: allScreenshots } = await supabase
+          .from('screenshots')
+          .select('competitor_id, storage_path')
+          .in('competitor_id', competitorIds)
+          .order('captured_at', { ascending: false });
+
+        // Gruppera screenshots per deltagare
+        const screenshotMap = new Map<string, string>();
+        allScreenshots?.forEach(s => {
+          if (!screenshotMap.has(s.competitor_id)) {
+            screenshotMap.set(s.competitor_id, s.storage_path);
+          }
+        });
+
+        // Hämta signerade URLs endast för online deltagare
+        const competitorsWithScreenshots = await Promise.all(
+          data.map(async (competitor) => {
+            const storagePath = screenshotMap.get(competitor.id);
+            let latestScreenshot = null;
+
+            // Prioritera online deltagare för skärmbilder
+            if (storagePath && competitor.status === 'online') {
+              latestScreenshot = await getSignedUrl(storagePath);
+            }
+
+            return { ...competitor, latestScreenshot };
+          })
+        );
+
+        setCompetitors(competitorsWithScreenshots);
+        setLastUpdate(new Date());
+      }
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, [getSignedUrl]);
+
+  // Ladda skärmbilder för offline-deltagare on-demand
+  const loadScreenshotForCompetitor = useCallback(async (competitor: CompetitorWithScreenshot) => {
+    if (competitor.latestScreenshot) return competitor;
+
+    const { data: screenshots } = await supabase
+      .from('screenshots')
+      .select('storage_path')
+      .eq('competitor_id', competitor.id)
+      .order('captured_at', { ascending: false })
+      .limit(1);
+
+    if (screenshots?.[0]) {
+      const url = await getSignedUrl(screenshots[0].storage_path);
+      return { ...competitor, latestScreenshot: url };
+    }
+    return competitor;
+  }, [getSignedUrl]);
 
   useEffect(() => {
     fetchCompetitors();
@@ -68,25 +136,17 @@ export const AdminDashboard = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'competitors' },
-        (payload) => {
-          console.log('Deltagarändring:', payload);
-          fetchCompetitors();
-        }
+        () => fetchCompetitors()
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'screenshots' },
-        (payload) => {
-          console.log('Ny skärmbild:', payload);
-          fetchCompetitors();
-        }
+        () => fetchCompetitors()
       )
-      .subscribe((status) => {
-        console.log('Realtidsprenumerationsstatus:', status);
-      });
+      .subscribe();
 
-    // Uppdatera var 3:e sekund för live-uppdateringar
-    const interval = setInterval(fetchCompetitors, 3000);
+    // Uppdatera var 5:e sekund (minskad från 3s)
+    const interval = setInterval(fetchCompetitors, 5000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -128,6 +188,16 @@ export const AdminDashboard = () => {
     };
     return acc;
   }, {} as Record<string, { total: number; online: number; offline: number }>);
+
+  // Hantera klick på deltagare - ladda skärmbild om det saknas
+  const handleCompetitorClick = async (competitor: CompetitorWithScreenshot) => {
+    if (!competitor.latestScreenshot) {
+      const updated = await loadScreenshotForCompetitor(competitor);
+      setSelectedCompetitor(updated);
+    } else {
+      setSelectedCompetitor(competitor);
+    }
+  };
 
   if (loading) {
     return (
@@ -241,7 +311,7 @@ export const AdminDashboard = () => {
                           ? 'border-destructive/50 bg-destructive/5 animate-pulse'
                           : 'border-border bg-card'
                       }`}
-                      onClick={() => setSelectedCompetitor(competitor)}
+                      onClick={() => handleCompetitorClick(competitor)}
                     >
                       {/* Skärmbildsförhandsvisning */}
                       <div className="aspect-video bg-muted relative">
@@ -250,6 +320,7 @@ export const AdminDashboard = () => {
                             src={competitor.latestScreenshot}
                             alt={`${competitor.name}s skärm`}
                             className="w-full h-full object-cover"
+                            loading="lazy"
                           />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
