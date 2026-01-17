@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from './StatusBadge';
-import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw } from 'lucide-react';
+import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
@@ -12,51 +12,27 @@ type Competitor = Database['public']['Tables']['competitors']['Row'];
 
 interface CompetitorWithScreenshot extends Competitor {
   latestScreenshot?: string | null;
+  isLive?: boolean;
 }
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
 
-// Cache för signerade URLs (5 min)
-const urlCache = new Map<string, { url: string; expires: number }>();
-
 export const AdminDashboard = () => {
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);
+  const [liveScreenshots, setLiveScreenshots] = useState<Map<string, string>>(new Map());
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const fetchingRef = useRef(false);
+  const channelsRef = useRef<ReturnType<typeof supabase.channel>[]>([]);
 
-  // Hämta signerad URL med cache
-  const getSignedUrl = useCallback(async (storagePath: string): Promise<string | null> => {
-    const now = Date.now();
-    const cached = urlCache.get(storagePath);
-    
-    if (cached && cached.expires > now) {
-      return cached.url;
-    }
-
-    const { data } = await supabase.storage
-      .from('screenshots')
-      .createSignedUrl(storagePath, 300); // 5 min
-
-    if (data?.signedUrl) {
-      urlCache.set(storagePath, { 
-        url: data.signedUrl, 
-        expires: now + 240000 // Cache 4 min
-      });
-      return data.signedUrl;
-    }
-    return null;
-  }, []);
-
-  // Hämta deltagare - optimerad
+  // Hämta deltagare
   const fetchCompetitors = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
 
     try {
-      // Hämta endast aktiva deltagare (senaste 24 timmarna)
       const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
       
       const { data } = await supabase
@@ -73,11 +49,9 @@ export const AdminDashboard = () => {
           if (!existing) {
             latestByUser.set(competitor.user_id, competitor);
           } else {
-            // Om nuvarande är online och existerande är offline, ersätt
             if (competitor.status === 'online' && existing.status !== 'online') {
               latestByUser.set(competitor.user_id, competitor);
             }
-            // Om båda har samma status, behåll den med senaste started_at (redan sorterad)
           }
         });
         
@@ -90,38 +64,12 @@ export const AdminDashboard = () => {
           return new Date(b.last_seen || 0).getTime() - new Date(a.last_seen || 0).getTime();
         });
 
-        // Hämta senaste skärmbild för varje deltagare (batch query)
-        const competitorIds = filteredData.map(c => c.id);
-        
-        // En enda query för alla screenshots
-        const { data: allScreenshots } = await supabase
-          .from('screenshots')
-          .select('competitor_id, storage_path')
-          .in('competitor_id', competitorIds)
-          .order('captured_at', { ascending: false });
-
-        // Gruppera screenshots per deltagare
-        const screenshotMap = new Map<string, string>();
-        allScreenshots?.forEach(s => {
-          if (!screenshotMap.has(s.competitor_id)) {
-            screenshotMap.set(s.competitor_id, s.storage_path);
-          }
-        });
-
-        // Hämta signerade URLs endast för online deltagare
-        const competitorsWithScreenshots = await Promise.all(
-          filteredData.map(async (competitor) => {
-            const storagePath = screenshotMap.get(competitor.id);
-            let latestScreenshot = null;
-
-            // Prioritera online deltagare för skärmbilder
-            if (storagePath && competitor.status === 'online') {
-              latestScreenshot = await getSignedUrl(storagePath);
-            }
-
-            return { ...competitor, latestScreenshot };
-          })
-        );
+        // Merge med live screenshots
+        const competitorsWithScreenshots = filteredData.map(competitor => ({
+          ...competitor,
+          latestScreenshot: liveScreenshots.get(competitor.id) || null,
+          isLive: liveScreenshots.has(competitor.id) && competitor.status === 'online',
+        }));
 
         setCompetitors(competitorsWithScreenshots);
         setLastUpdate(new Date());
@@ -130,30 +78,70 @@ export const AdminDashboard = () => {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [getSignedUrl]);
+  }, [liveScreenshots]);
 
-  // Ladda skärmbilder för offline-deltagare on-demand
-  const loadScreenshotForCompetitor = useCallback(async (competitor: CompetitorWithScreenshot) => {
-    if (competitor.latestScreenshot) return competitor;
+  // Prenumerera på live-sändningar för varje rum
+  useEffect(() => {
+    // Rensa gamla kanaler
+    channelsRef.current.forEach(channel => {
+      supabase.removeChannel(channel);
+    });
+    channelsRef.current = [];
 
-    const { data: screenshots } = await supabase
-      .from('screenshots')
-      .select('storage_path')
-      .eq('competitor_id', competitor.id)
-      .order('captured_at', { ascending: false })
-      .limit(1);
+    // Skapa kanaler för varje rum
+    ROOMS.forEach(room => {
+      const channel = supabase.channel(`live-screenshots-${room}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      });
 
-    if (screenshots?.[0]) {
-      const url = await getSignedUrl(screenshots[0].storage_path);
-      return { ...competitor, latestScreenshot: url };
-    }
-    return competitor;
-  }, [getSignedUrl]);
+      channel.on('broadcast', { event: 'screenshot' }, (payload) => {
+        const { competitorId, imageData } = payload.payload as {
+          competitorId: string;
+          userId: string;
+          imageData: string;
+          timestamp: number;
+        };
+
+        setLiveScreenshots(prev => {
+          const newMap = new Map(prev);
+          newMap.set(competitorId, imageData);
+          return newMap;
+        });
+
+        // Uppdatera kompetitors skärmbild direkt
+        setCompetitors(prev => 
+          prev.map(c => 
+            c.id === competitorId 
+              ? { ...c, latestScreenshot: imageData, isLive: true }
+              : c
+          )
+        );
+
+        // Uppdatera även vald deltagare om den matchar
+        setSelectedCompetitor(prev => 
+          prev?.id === competitorId 
+            ? { ...prev, latestScreenshot: imageData, isLive: true }
+            : prev
+        );
+      });
+
+      channel.subscribe();
+      channelsRef.current.push(channel);
+    });
+
+    return () => {
+      channelsRef.current.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+    };
+  }, []);
 
   useEffect(() => {
     fetchCompetitors();
 
-    // Prenumerera på realtidsuppdateringar
+    // Prenumerera på realtidsuppdateringar för competitors-tabellen
     const channel = supabase
       .channel('competitors-realtime')
       .on(
@@ -161,14 +149,9 @@ export const AdminDashboard = () => {
         { event: '*', schema: 'public', table: 'competitors' },
         () => fetchCompetitors()
       )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'screenshots' },
-        () => fetchCompetitors()
-      )
       .subscribe();
 
-    // Uppdatera var 5:e sekund (minskad från 3s)
+    // Uppdatera var 5:e sekund
     const interval = setInterval(fetchCompetitors, 5000);
 
     return () => {
@@ -212,14 +195,9 @@ export const AdminDashboard = () => {
     return acc;
   }, {} as Record<string, { total: number; online: number; offline: number }>);
 
-  // Hantera klick på deltagare - ladda skärmbild om det saknas
-  const handleCompetitorClick = async (competitor: CompetitorWithScreenshot) => {
-    if (!competitor.latestScreenshot) {
-      const updated = await loadScreenshotForCompetitor(competitor);
-      setSelectedCompetitor(updated);
-    } else {
-      setSelectedCompetitor(competitor);
-    }
+  // Hantera klick på deltagare
+  const handleCompetitorClick = (competitor: CompetitorWithScreenshot) => {
+    setSelectedCompetitor(competitor);
   };
 
   if (loading) {
@@ -343,7 +321,6 @@ export const AdminDashboard = () => {
                             src={competitor.latestScreenshot}
                             alt={`${competitor.name}s skärm`}
                             className="w-full h-full object-cover"
-                            loading="lazy"
                           />
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -351,6 +328,14 @@ export const AdminDashboard = () => {
                           </div>
                         )}
                         
+                        {/* Live-indikator */}
+                        {competitor.isLive && (
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 bg-destructive text-destructive-foreground rounded text-xs font-medium">
+                            <span className="h-2 w-2 bg-white rounded-full animate-pulse" />
+                            LIVE
+                          </div>
+                        )}
+
                         {/* Statusindikator */}
                         <div className="absolute top-2 right-2">
                           <StatusBadge status={competitor.status as 'online' | 'offline' | 'inactive'} />
@@ -395,7 +380,15 @@ export const AdminDashboard = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-foreground">{selectedCompetitor.name}</h2>
+                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                  {selectedCompetitor.name}
+                  {selectedCompetitor.isLive && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 bg-destructive text-destructive-foreground rounded text-xs font-medium">
+                      <span className="h-2 w-2 bg-white rounded-full animate-pulse" />
+                      LIVE
+                    </span>
+                  )}
+                </h2>
                 <div className="flex items-center gap-2 mt-1">
                   <StatusBadge
                     status={selectedCompetitor.status as 'online' | 'offline' | 'inactive'}
@@ -436,9 +429,16 @@ export const AdminDashboard = () => {
                   <div className="text-center text-muted-foreground">
                     <Monitor className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p>Ingen skärmbild tillgänglig</p>
+                    <p className="text-sm mt-2">Väntar på live-sändning...</p>
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Video recordings info */}
+            <div className="mt-4 p-3 bg-secondary/50 rounded-lg flex items-center gap-2 text-sm text-muted-foreground">
+              <Video className="h-4 w-4" />
+              <span>Inspelningar sparas automatiskt varje minut för granskning efter tävlingen</span>
             </div>
           </div>
         </div>

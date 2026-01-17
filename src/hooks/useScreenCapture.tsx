@@ -10,6 +10,10 @@ interface ScreenCaptureState {
   startTime: number | null;
 }
 
+const VIDEO_SEGMENT_DURATION_MS = 60000; // 1 minute per video segment
+const BROADCAST_INTERVAL_MS = 1000; // Broadcast every 1 second
+const VIDEO_FPS = 1; // 1 frame per second for video recording
+
 export const useScreenCapture = () => {
   const { user } = useAuth();
   const [state, setState] = useState<ScreenCaptureState>({
@@ -20,23 +24,28 @@ export const useScreenCapture = () => {
     startTime: null,
   });
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const broadcastIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const videoSegmentStartRef = useRef<number>(0);
+  const videoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  const compressImage = useCallback(async (
+  // Compress image for broadcast (smaller size for realtime)
+  const compressImageForBroadcast = useCallback(async (
     video: HTMLVideoElement,
     canvas: HTMLCanvasElement,
-    maxWidth: number = 1280,
-    quality: number = 0.5
-  ): Promise<Blob | null> => {
+    maxWidth: number = 640,
+    quality: number = 0.4
+  ): Promise<string | null> => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
     const originalWidth = video.videoWidth;
     const originalHeight = video.videoHeight;
 
-    // Calculate scaled dimensions while maintaining aspect ratio
     let targetWidth = originalWidth;
     let targetHeight = originalHeight;
 
@@ -46,20 +55,16 @@ export const useScreenCapture = () => {
       targetHeight = Math.round(originalHeight * scale);
     }
 
-    // Set canvas to target dimensions
     canvas.width = targetWidth;
     canvas.height = targetHeight;
-
-    // Draw scaled image
     ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
-    // Convert to compressed JPEG blob
-    return new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', quality);
-    });
+    // Return as base64 for broadcast
+    return canvas.toDataURL('image/jpeg', quality);
   }, []);
 
-  const captureAndUpload = useCallback(async () => {
+  // Broadcast screenshot to admins via Supabase Realtime
+  const broadcastScreenshot = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !user || !state.competitorId) {
       return;
     }
@@ -67,25 +72,74 @@ export const useScreenCapture = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    // Compress image: scale to max 1280px width, 50% JPEG quality
-    const blob = await compressImage(video, canvas, 1280, 0.5);
+    const imageData = await compressImageForBroadcast(video, canvas, 640, 0.4);
+    if (!imageData) return;
 
-    if (!blob) return;
+    // Broadcast via Supabase Realtime channel
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'screenshot',
+        payload: {
+          competitorId: state.competitorId,
+          userId: user.id,
+          imageData,
+          timestamp: Date.now(),
+        },
+      });
+    }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileName = `${user.id}/${state.competitorId}/${timestamp}.jpg`;
+    // Update last_seen
+    await supabase
+      .from('competitors')
+      .update({ last_seen: new Date().toISOString(), status: 'online' })
+      .eq('id', state.competitorId);
+  }, [user, state.competitorId, compressImageForBroadcast]);
 
-    // Upload to storage
+  // Draw frame to recording canvas at 1 FPS
+  const drawFrameToRecordingCanvas = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Set canvas size for video recording (1280px max width)
+    const maxWidth = 1280;
+    let targetWidth = video.videoWidth;
+    let targetHeight = video.videoHeight;
+
+    if (targetWidth > maxWidth) {
+      const scale = maxWidth / targetWidth;
+      targetWidth = maxWidth;
+      targetHeight = Math.round(video.videoHeight * scale);
+    }
+
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+    }
+
+    ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+  }, []);
+
+  // Upload video segment to storage
+  const uploadVideoSegment = useCallback(async (blob: Blob, segmentStart: number) => {
+    if (!user || !state.competitorId) return;
+
+    const timestamp = segmentStart;
+    const fileName = `${user.id}/${state.competitorId}/${timestamp}.webm`;
+
     const { error: uploadError } = await supabase.storage
       .from('screenshots')
       .upload(fileName, blob, {
-        contentType: 'image/jpeg',
+        contentType: 'video/webm',
         cacheControl: '3600',
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
+      console.error('Video upload error:', uploadError);
       return;
     }
 
@@ -93,15 +147,62 @@ export const useScreenCapture = () => {
     await supabase.from('screenshots').insert({
       competitor_id: state.competitorId,
       storage_path: fileName,
-      captured_at: new Date().toISOString(),
+      captured_at: new Date(segmentStart).toISOString(),
     });
 
-    // Update last_seen
-    await supabase
-      .from('competitors')
-      .update({ last_seen: new Date().toISOString(), status: 'online' })
-      .eq('id', state.competitorId);
-  }, [user, state.competitorId, compressImage]);
+    console.log('Video segment uploaded:', fileName);
+  }, [user, state.competitorId]);
+
+  // Start a new video recording segment
+  const startVideoSegment = useCallback(() => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    
+    // Capture stream at 1 FPS
+    const stream = canvas.captureStream(VIDEO_FPS);
+    
+    const mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs=vp9',
+      videoBitsPerSecond: 500000, // 500kbps for compressed video
+    });
+
+    recordedChunksRef.current = [];
+    videoSegmentStartRef.current = Date.now();
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        recordedChunksRef.current.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = async () => {
+      if (recordedChunksRef.current.length > 0) {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        await uploadVideoSegment(blob, videoSegmentStartRef.current);
+      }
+    };
+
+    mediaRecorder.start(1000); // Collect data every second
+    mediaRecorderRef.current = mediaRecorder;
+
+    // Draw frames at 1 FPS for the video
+    videoIntervalRef.current = setInterval(drawFrameToRecordingCanvas, 1000);
+
+    // Schedule segment end after 1 minute
+    setTimeout(() => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        if (videoIntervalRef.current) {
+          clearInterval(videoIntervalRef.current);
+        }
+        // Start new segment if still capturing
+        if (state.isCapturing) {
+          startVideoSegment();
+        }
+      }
+    }, VIDEO_SEGMENT_DURATION_MS);
+  }, [drawFrameToRecordingCanvas, uploadVideoSegment, state.isCapturing]);
 
   const startCapture = async (room: string = 'Rum 41') => {
     if (!user) {
@@ -109,11 +210,9 @@ export const useScreenCapture = () => {
       return;
     }
 
-    // Get name from user metadata
     const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown';
 
     try {
-      // Request screen capture
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: 'monitor',
@@ -127,7 +226,6 @@ export const useScreenCapture = () => {
       const displaySurface = (settings as { displaySurface?: string }).displaySurface;
       
       if (displaySurface !== 'monitor') {
-        // Stop the stream and reject
         stream.getTracks().forEach((t) => t.stop());
         setState((prev) => ({
           ...prev,
@@ -169,6 +267,15 @@ export const useScreenCapture = () => {
         throw competitorError;
       }
 
+      // Create broadcast channel for live screenshots
+      const channel = supabase.channel(`live-screenshots-${room}`, {
+        config: {
+          broadcast: { self: false },
+        },
+      });
+      await channel.subscribe();
+      channelRef.current = channel;
+
       setState({
         isCapturing: true,
         stream,
@@ -177,7 +284,7 @@ export const useScreenCapture = () => {
         startTime: Date.now(),
       });
 
-      // Handle stream ending (user clicks "Stop sharing")
+      // Handle stream ending
       stream.getVideoTracks()[0].onended = () => {
         stopCapture();
       };
@@ -191,9 +298,27 @@ export const useScreenCapture = () => {
   };
 
   const stopCapture = async () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    // Stop broadcast interval
+    if (broadcastIntervalRef.current) {
+      clearInterval(broadcastIntervalRef.current);
+      broadcastIntervalRef.current = null;
+    }
+
+    // Stop video recording
+    if (videoIntervalRef.current) {
+      clearInterval(videoIntervalRef.current);
+      videoIntervalRef.current = null;
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+
+    // Unsubscribe from channel
+    if (channelRef.current) {
+      await supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
     if (state.stream) {
@@ -222,22 +347,29 @@ export const useScreenCapture = () => {
     });
   };
 
-  // Start interval when capturing begins
+  // Start broadcast and video recording when capturing begins
   useEffect(() => {
     if (state.isCapturing && state.competitorId) {
-      // Capture immediately on start
-      captureAndUpload();
+      // Draw initial frame
+      drawFrameToRecordingCanvas();
 
-      // Then capture every second
-      intervalRef.current = setInterval(captureAndUpload, 1000);
+      // Start broadcasting screenshots every second
+      broadcastScreenshot();
+      broadcastIntervalRef.current = setInterval(broadcastScreenshot, BROADCAST_INTERVAL_MS);
+
+      // Start video recording
+      startVideoSegment();
     }
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (broadcastIntervalRef.current) {
+        clearInterval(broadcastIntervalRef.current);
+      }
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
       }
     };
-  }, [state.isCapturing, state.competitorId, captureAndUpload]);
+  }, [state.isCapturing, state.competitorId, broadcastScreenshot, startVideoSegment, drawFrameToRecordingCanvas]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -245,8 +377,17 @@ export const useScreenCapture = () => {
       if (state.stream) {
         state.stream.getTracks().forEach((track) => track.stop());
       }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (broadcastIntervalRef.current) {
+        clearInterval(broadcastIntervalRef.current);
+      }
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
       }
     };
   }, []);
