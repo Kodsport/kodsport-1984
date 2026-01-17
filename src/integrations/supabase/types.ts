@@ -21,6 +21,7 @@ export type Database = {
           id: string
           last_seen: string | null
           name: string
+          room: string | null
           session_id: string
           started_at: string | null
           status: Database["public"]["Enums"]["competitor_status"]
@@ -32,6 +33,7 @@ export type Database = {
           id?: string
           last_seen?: string | null
           name: string
+          room?: string | null
           session_id: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["competitor_status"]
@@ -43,6 +45,7 @@ export type Database = {
           id?: string
           last_seen?: string | null
           name?: string
+          room?: string | null
           session_id?: string
           started_at?: string | null
           status?: Database["public"]["Enums"]["competitor_status"]
