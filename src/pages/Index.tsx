@@ -31,9 +31,7 @@ const Index = () => {
               <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">
                 ​bokstavligen 1984, du vågar inte fuska                                  
               </h1>
-              <p className="text-muted-foreground">
-                Logga in för att börja övervaka eller delta i tävlingen
-              </p>
+              
             </div>
 
             <Card className="glass-panel card-elevated">
@@ -43,7 +41,7 @@ const Index = () => {
             </Card>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Drivs av Programmeringsolympiaden
+              Kodsport Sverige    
             </p>
           </div>
         </div>
