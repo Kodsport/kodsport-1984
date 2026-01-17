@@ -308,7 +308,7 @@ export const AdminDashboard = () => {
                       key={competitor.id}
                       className={`group relative rounded-lg overflow-hidden border cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-primary ${
                         competitor.status === 'offline'
-                          ? 'border-destructive/50 bg-destructive/5 animate-pulse'
+                          ? 'border-destructive/50 bg-destructive/5'
                           : 'border-border bg-card'
                       }`}
                       onClick={() => handleCompetitorClick(competitor)}
