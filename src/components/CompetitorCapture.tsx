@@ -3,9 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/hooks/useAuth';
-import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User } from 'lucide-react';
+import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
+import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
 type Room = typeof ROOMS[number] | '';
@@ -15,6 +17,7 @@ export const CompetitorCapture = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const { isCapturing, error, startTime, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
+  const { isDevToolsOpen, hasBeenOpened } = useDevToolsDetection();
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Deltagare';
 
@@ -50,6 +53,18 @@ export const CompetitorCapture = () => {
 
   return (
     <div className="space-y-6">
+      {/* DevTools Warning Alert */}
+      {hasBeenOpened && (
+        <Alert variant="destructive" className="border-destructive bg-destructive/10">
+          <ShieldAlert className="h-5 w-5" />
+          <AlertTitle className="font-bold">Varning: Utvecklarverktyg upptäckta!</AlertTitle>
+          <AlertDescription className="mt-2">
+            <p>Användning av utvecklarverktyg (Inspect Element) är inte tillåtet under tävlingen.</p>
+            <p className="mt-1 font-medium">Denna händelse har loggats och kommer att granskas av tävlingsfunktionärer.</p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="glass-panel card-elevated">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
