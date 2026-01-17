@@ -121,6 +121,21 @@ export const useScreenCapture = () => {
         audio: false,
       });
 
+      // Check if user selected entire screen (monitor)
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings();
+      const displaySurface = (settings as { displaySurface?: string }).displaySurface;
+      
+      if (displaySurface !== 'monitor') {
+        // Stop the stream and reject
+        stream.getTracks().forEach((t) => t.stop());
+        setState((prev) => ({
+          ...prev,
+          error: 'Du måste välja "Hela skärmen" för att delta. Försök igen och välj hela skärmen.',
+        }));
+        return;
+      }
+
       // Create video element
       const video = document.createElement('video');
       video.srcObject = stream;
