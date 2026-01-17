@@ -13,7 +13,7 @@ interface ScreenCaptureState {
 
 const VIDEO_SEGMENT_DURATION_MS = 60000; // 1 minute per video segment
 const BROADCAST_INTERVAL_MS = 500; // Broadcast every 0.5 seconds (twice per second)
-const VIDEO_FPS = 2; // 2 frames per second for video recording
+const VIDEO_FPS = 5; // 5 frames per second for video recording
 
 export const useScreenCapture = () => {
   const { user } = useAuth();
@@ -210,8 +210,8 @@ export const useScreenCapture = () => {
     mediaRecorder.start(500); // Collect data every 0.5 seconds
     mediaRecorderRef.current = mediaRecorder;
 
-    // Draw frames at 2 FPS for the video (every 500ms)
-    videoIntervalRef.current = setInterval(drawFrameToRecordingCanvas, 500);
+    // Draw frames at 5 FPS for the video (every 200ms)
+    videoIntervalRef.current = setInterval(drawFrameToRecordingCanvas, 200);
 
     // Schedule segment end after 1 minute
     segmentTimeoutRef.current = setTimeout(() => {
