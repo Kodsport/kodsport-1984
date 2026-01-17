@@ -24,6 +24,41 @@ export const useScreenCapture = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const compressImage = useCallback(async (
+    video: HTMLVideoElement,
+    canvas: HTMLCanvasElement,
+    maxWidth: number = 1280,
+    quality: number = 0.5
+  ): Promise<Blob | null> => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const originalWidth = video.videoWidth;
+    const originalHeight = video.videoHeight;
+
+    // Calculate scaled dimensions while maintaining aspect ratio
+    let targetWidth = originalWidth;
+    let targetHeight = originalHeight;
+
+    if (originalWidth > maxWidth) {
+      const scale = maxWidth / originalWidth;
+      targetWidth = maxWidth;
+      targetHeight = Math.round(originalHeight * scale);
+    }
+
+    // Set canvas to target dimensions
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    // Draw scaled image
+    ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+    // Convert to compressed JPEG blob
+    return new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    });
+  }, []);
+
   const captureAndUpload = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !user || !state.competitorId) {
       return;
@@ -31,21 +66,9 @@ export const useScreenCapture = () => {
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
 
-    if (!ctx) return;
-
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    // Draw current frame to canvas
-    ctx.drawImage(video, 0, 0);
-
-    // Convert to blob
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', 0.7);
-    });
+    // Compress image: scale to max 1280px width, 50% JPEG quality
+    const blob = await compressImage(video, canvas, 1280, 0.5);
 
     if (!blob) return;
 
@@ -80,7 +103,7 @@ export const useScreenCapture = () => {
       .eq('id', state.competitorId);
 
     setState((prev) => ({ ...prev, captureCount: prev.captureCount + 1 }));
-  }, [user, state.competitorId]);
+  }, [user, state.competitorId, compressImage]);
 
   const startCapture = async (name: string) => {
     if (!user) {
