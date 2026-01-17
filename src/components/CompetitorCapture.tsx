@@ -8,10 +8,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User } from 'lucide-react';
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
-type Room = typeof ROOMS[number];
+type Room = typeof ROOMS[number] | '';
 
 export const CompetitorCapture = () => {
-  const [room, setRoom] = useState<Room>('Rum 41');
+  const [room, setRoom] = useState<Room>('');
   const [elapsedTime, setElapsedTime] = useState(0);
   const { isCapturing, error, startTime, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
