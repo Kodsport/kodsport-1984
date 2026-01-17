@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { sendDiscordAlert } from '@/lib/discordAlert';
 
 interface ScreenCaptureState {
   isCapturing: boolean;
@@ -326,16 +325,9 @@ export const useScreenCapture = () => {
       mediaRecorderRef.current = null;
     }
 
-    // Broadcast stop event to admins
+    // Broadcast stop event to admins via realtime (for in-app notifications)
     if (notifyAdmins && state.competitorId && user) {
       const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown';
-      
-      // Send Discord notification
-      sendDiscordAlert({
-        type: 'stopped',
-        competitorName: name,
-        room: room || 'Unknown',
-      });
 
       const alertChannel = supabase.channel('admin-alerts');
       await alertChannel.subscribe();

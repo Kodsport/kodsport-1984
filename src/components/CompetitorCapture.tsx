@@ -8,7 +8,6 @@ import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/hooks/useAuth';
 import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
 import { supabase } from '@/integrations/supabase/client';
-import { sendDiscordAlert } from '@/lib/discordAlert';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
@@ -26,13 +25,21 @@ export const CompetitorCapture = () => {
   const handleDevToolsDetected = useCallback(async () => {
     if (!room || !competitorId) return;
 
-    // Send Discord notification
-    sendDiscordAlert({
-      type: 'devtools',
-      competitorName: userName,
-      room,
-    });
+    // Send Discord notification via edge function
+    try {
+      await supabase.functions.invoke('discord-alert', {
+        body: {
+          type: 'devtools',
+          competitorName: userName,
+          room,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      console.error('Failed to send Discord alert:', err);
+    }
 
+    // Also send realtime alert for in-app notifications
     const channel = supabase.channel('admin-alerts');
     await channel.subscribe();
     
