@@ -63,12 +63,35 @@ export const AdminDashboard = () => {
         .from('competitors')
         .select('*')
         .gte('last_seen', oneDayAgo)
-        .order('status', { ascending: true }) // Online först
-        .order('last_seen', { ascending: false });
+        .order('started_at', { ascending: false });
 
       if (data) {
+        // Filtrera bort gamla sessioner - visa endast senaste per användare
+        const latestByUser = new Map<string, typeof data[0]>();
+        data.forEach(competitor => {
+          const existing = latestByUser.get(competitor.user_id);
+          if (!existing) {
+            latestByUser.set(competitor.user_id, competitor);
+          } else {
+            // Om nuvarande är online och existerande är offline, ersätt
+            if (competitor.status === 'online' && existing.status !== 'online') {
+              latestByUser.set(competitor.user_id, competitor);
+            }
+            // Om båda har samma status, behåll den med senaste started_at (redan sorterad)
+          }
+        });
+        
+        const filteredData = Array.from(latestByUser.values());
+        
+        // Sortera: online först, sedan efter senast sedd
+        filteredData.sort((a, b) => {
+          if (a.status === 'online' && b.status !== 'online') return -1;
+          if (a.status !== 'online' && b.status === 'online') return 1;
+          return new Date(b.last_seen || 0).getTime() - new Date(a.last_seen || 0).getTime();
+        });
+
         // Hämta senaste skärmbild för varje deltagare (batch query)
-        const competitorIds = data.map(c => c.id);
+        const competitorIds = filteredData.map(c => c.id);
         
         // En enda query för alla screenshots
         const { data: allScreenshots } = await supabase
@@ -87,7 +110,7 @@ export const AdminDashboard = () => {
 
         // Hämta signerade URLs endast för online deltagare
         const competitorsWithScreenshots = await Promise.all(
-          data.map(async (competitor) => {
+          filteredData.map(async (competitor) => {
             const storagePath = screenshotMap.get(competitor.id);
             let latestScreenshot = null;
 
