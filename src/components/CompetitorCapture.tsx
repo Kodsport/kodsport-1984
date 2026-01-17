@@ -1,23 +1,25 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
-import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User } from 'lucide-react';
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
 type Room = typeof ROOMS[number];
 
 export const CompetitorCapture = () => {
-  const [name, setName] = useState('');
   const [room, setRoom] = useState<Room>('Rum 41');
   const { isCapturing, error, captureCount, startCapture, stopCapture } = useScreenCapture();
+  const { user } = useAuth();
+
+  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Competitor';
 
   const handleStart = () => {
-    if (name.trim() && room) {
-      startCapture(name.trim(), room);
+    if (room) {
+      startCapture(room);
     }
   };
 
@@ -36,17 +38,15 @@ export const CompetitorCapture = () => {
         <CardContent className="space-y-4">
           {!isCapturing ? (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="competitor-name" className="text-foreground">
-                  Your Name
-                </Label>
-                <Input
-                  id="competitor-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  className="bg-secondary border-border"
-                />
+              {/* Show user name */}
+              <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg border border-border">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">{userName}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -70,7 +70,7 @@ export const CompetitorCapture = () => {
 
               <Button
                 onClick={handleStart}
-                disabled={!name.trim() || !room}
+                disabled={!room}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 golden-glow"
               >
                 <Monitor className="h-4 w-4 mr-2" />

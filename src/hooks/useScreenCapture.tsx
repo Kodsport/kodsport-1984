@@ -105,11 +105,14 @@ export const useScreenCapture = () => {
     setState((prev) => ({ ...prev, captureCount: prev.captureCount + 1 }));
   }, [user, state.competitorId, compressImage]);
 
-  const startCapture = async (name: string, room: string = 'Rum 41') => {
+  const startCapture = async (room: string = 'Rum 41') => {
     if (!user) {
       setState((prev) => ({ ...prev, error: 'Must be logged in to start capture' }));
       return;
     }
+
+    // Get name from user metadata
+    const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown';
 
     try {
       // Request screen capture
