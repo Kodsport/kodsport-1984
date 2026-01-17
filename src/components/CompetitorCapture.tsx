@@ -3,16 +3,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
-import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera } from 'lucide-react';
+import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen } from 'lucide-react';
+
+const ROOMS = ['Rum 41', 'Rum 43'] as const;
+type Room = typeof ROOMS[number];
 
 export const CompetitorCapture = () => {
   const [name, setName] = useState('');
+  const [room, setRoom] = useState<Room>('Rum 41');
   const { isCapturing, error, captureCount, startCapture, stopCapture } = useScreenCapture();
 
   const handleStart = () => {
-    if (name.trim()) {
-      startCapture(name.trim());
+    if (name.trim() && room) {
+      startCapture(name.trim(), room);
     }
   };
 
@@ -44,9 +49,28 @@ export const CompetitorCapture = () => {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="room" className="text-foreground flex items-center gap-2">
+                  <DoorOpen className="h-4 w-4" />
+                  Room
+                </Label>
+                <Select value={room} onValueChange={(value) => setRoom(value as Room)}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="Select your room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROOMS.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button
                 onClick={handleStart}
-                disabled={!name.trim()}
+                disabled={!name.trim() || !room}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 golden-glow"
               >
                 <Monitor className="h-4 w-4 mr-2" />

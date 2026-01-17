@@ -105,7 +105,7 @@ export const useScreenCapture = () => {
     setState((prev) => ({ ...prev, captureCount: prev.captureCount + 1 }));
   }, [user, state.competitorId, compressImage]);
 
-  const startCapture = async (name: string) => {
+  const startCapture = async (name: string, room: string = 'Rum 41') => {
     if (!user) {
       setState((prev) => ({ ...prev, error: 'Must be logged in to start capture' }));
       return;
@@ -141,6 +141,7 @@ export const useScreenCapture = () => {
         .insert({
           user_id: user.id,
           name,
+          room,
           session_id: sessionId,
           status: 'online',
           started_at: new Date().toISOString(),
