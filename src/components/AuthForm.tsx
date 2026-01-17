@@ -36,14 +36,14 @@ export const AuthForm = () => {
       {!isLogin && (
         <div className="space-y-2">
           <Label htmlFor="name" className="text-foreground">
-            Full Name
+            Fullständigt namn
           </Label>
           <Input
             id="name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your full name"
+            placeholder="Ange ditt fullständiga namn"
             required={!isLogin}
             className="bg-secondary border-border"
           />
@@ -52,14 +52,14 @@ export const AuthForm = () => {
 
       <div className="space-y-2">
         <Label htmlFor="email" className="text-foreground">
-          Email
+          E-post
         </Label>
         <Input
           id="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Enter your email"
+          placeholder="Ange din e-postadress"
           required
           className="bg-secondary border-border"
         />
@@ -67,14 +67,14 @@ export const AuthForm = () => {
 
       <div className="space-y-2">
         <Label htmlFor="password" className="text-foreground">
-          Password
+          Lösenord
         </Label>
         <Input
           id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Enter your password"
+          placeholder="Ange ditt lösenord"
           required
           minLength={6}
           className="bg-secondary border-border"
@@ -97,12 +97,12 @@ export const AuthForm = () => {
         ) : isLogin ? (
           <>
             <LogIn className="h-4 w-4 mr-2" />
-            Sign In
+            Logga in
           </>
         ) : (
           <>
             <UserPlus className="h-4 w-4 mr-2" />
-            Create Account
+            Skapa konto
           </>
         )}
       </Button>
@@ -113,7 +113,7 @@ export const AuthForm = () => {
         className="w-full text-muted-foreground hover:text-foreground"
         onClick={() => setIsLogin(!isLogin)}
       >
-        {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+        {isLogin ? 'Har du inget konto? Registrera dig' : 'Har du redan ett konto? Logga in'}
       </Button>
     </form>
   );

@@ -19,7 +19,7 @@ const Index = () => {
     );
   }
 
-  // Not logged in - show auth form
+  // Inte inloggad - visa inloggningsformulär
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -30,10 +30,10 @@ const Index = () => {
                 <Logo />
               </div>
               <h1 className="text-2xl font-bold text-foreground mb-2">
-                Anti-Cheat Monitor
+                Anti-fusk Monitor
               </h1>
               <p className="text-muted-foreground">
-                Sign in to start monitoring or participate in the competition
+                Logga in för att börja övervaka eller delta i tävlingen
               </p>
             </div>
 
@@ -44,7 +44,7 @@ const Index = () => {
             </Card>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Powered by Programmeringsolympiaden
+              Drivs av Programmeringsolympiaden
             </p>
           </div>
         </div>
@@ -52,7 +52,7 @@ const Index = () => {
     );
   }
 
-  // Admin view
+  // Adminvy
   if (isAdmin) {
     return (
       <div className="min-h-screen bg-background">
@@ -66,7 +66,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger value="capture" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Monitor className="h-4 w-4 mr-2" />
-                Competitor View
+                Deltagarvy
               </TabsTrigger>
             </TabsList>
 
@@ -85,7 +85,7 @@ const Index = () => {
     );
   }
 
-  // Regular user view (competitor)
+  // Vanlig användarvy (deltagare)
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -93,10 +93,10 @@ const Index = () => {
         <div className="max-w-lg mx-auto animate-fade-in">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Competition Monitor
+              Tävlingsmonitor
             </h1>
             <p className="text-muted-foreground">
-              Start screen capture to participate in the monitored competition
+              Starta skärminspelning för att delta i den övervakade tävlingen
             </p>
           </div>
 

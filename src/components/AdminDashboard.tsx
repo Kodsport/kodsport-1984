@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatusBadge } from './StatusBadge';
 import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { sv } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
 
 type Competitor = Database['public']['Tables']['competitors']['Row'];
@@ -22,7 +23,7 @@ export const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  // Fetch competitors
+  // Hämta deltagare
   const fetchCompetitors = useCallback(async () => {
     const { data } = await supabase
       .from('competitors')
@@ -30,7 +31,7 @@ export const AdminDashboard = () => {
       .order('last_seen', { ascending: false });
 
     if (data) {
-      // Fetch latest screenshot for each competitor
+      // Hämta senaste skärmbild för varje deltagare
       const competitorsWithScreenshots = await Promise.all(
         data.map(async (competitor) => {
           const { data: screenshots } = await supabase
@@ -61,14 +62,14 @@ export const AdminDashboard = () => {
   useEffect(() => {
     fetchCompetitors();
 
-    // Subscribe to realtime updates
+    // Prenumerera på realtidsuppdateringar
     const channel = supabase
       .channel('competitors-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'competitors' },
         (payload) => {
-          console.log('Competitor change:', payload);
+          console.log('Deltagarändring:', payload);
           fetchCompetitors();
         }
       )
@@ -76,15 +77,15 @@ export const AdminDashboard = () => {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'screenshots' },
         (payload) => {
-          console.log('New screenshot:', payload);
+          console.log('Ny skärmbild:', payload);
           fetchCompetitors();
         }
       )
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
+        console.log('Realtidsprenumerationsstatus:', status);
       });
 
-    // Refresh every 3 seconds for live updates
+    // Uppdatera var 3:e sekund för live-uppdateringar
     const interval = setInterval(fetchCompetitors, 3000);
 
     return () => {
@@ -93,7 +94,7 @@ export const AdminDashboard = () => {
     };
   }, [fetchCompetitors]);
 
-  // Check for offline competitors (no update in 10 seconds)
+  // Kontrollera offline-deltagare (ingen uppdatering på 10 sekunder)
   useEffect(() => {
     const checkOffline = async () => {
       const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
@@ -109,7 +110,7 @@ export const AdminDashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Filter competitors by room
+  // Filtrera deltagare efter rum
   const filteredCompetitors = selectedRoom === 'all' 
     ? competitors 
     : competitors.filter(c => c.room === selectedRoom);
@@ -117,7 +118,7 @@ export const AdminDashboard = () => {
   const onlineCount = filteredCompetitors.filter((c) => c.status === 'online').length;
   const offlineCount = filteredCompetitors.filter((c) => c.status === 'offline').length;
 
-  // Get counts per room
+  // Hämta antal per rum
   const roomCounts = ROOMS.reduce((acc, room) => {
     const roomCompetitors = competitors.filter(c => c.room === room);
     acc[room] = {
@@ -138,13 +139,13 @@ export const AdminDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Room Tabs */}
+      {/* Rumflikar */}
       <Tabs value={selectedRoom} onValueChange={setSelectedRoom}>
         <div className="flex items-center justify-between">
           <TabsList className="bg-secondary">
             <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Users className="h-4 w-4 mr-2" />
-              All Rooms ({competitors.length})
+              Alla rum ({competitors.length})
             </TabsTrigger>
             {ROOMS.map((room) => (
               <TabsTrigger 
@@ -166,11 +167,11 @@ export const AdminDashboard = () => {
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <RefreshCw className="h-3 w-3 animate-spin" />
-            Updated {formatDistanceToNow(lastUpdate, { addSuffix: true })}
+            Uppdaterad {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: sv })}
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Statistik */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <Card className="glass-panel">
             <CardContent className="p-4 flex items-center gap-4">
@@ -180,7 +181,7 @@ export const AdminDashboard = () => {
               <div>
                 <p className="text-2xl font-bold text-foreground">{filteredCompetitors.length}</p>
                 <p className="text-sm text-muted-foreground">
-                  {selectedRoom === 'all' ? 'Total Competitors' : `In ${selectedRoom}`}
+                  {selectedRoom === 'all' ? 'Totalt antal deltagare' : `I ${selectedRoom}`}
                 </p>
               </div>
             </CardContent>
@@ -193,7 +194,7 @@ export const AdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{onlineCount}</p>
-                <p className="text-sm text-muted-foreground">Online Now</p>
+                <p className="text-sm text-muted-foreground">Online nu</p>
               </div>
             </CardContent>
           </Card>
@@ -205,19 +206,19 @@ export const AdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{offlineCount}</p>
-                <p className="text-sm text-muted-foreground">Offline / Alert</p>
+                <p className="text-sm text-muted-foreground">Offline / Varning</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Content for each tab */}
+        {/* Innehåll för varje flik */}
         <TabsContent value={selectedRoom} className="mt-4">
           <Card className="glass-panel">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
                 <Eye className="h-5 w-5 text-primary" />
-                Live Monitoring
+                Live-övervakning
                 {selectedRoom !== 'all' && (
                   <span className="text-sm font-normal text-muted-foreground">— {selectedRoom}</span>
                 )}
@@ -227,8 +228,8 @@ export const AdminDashboard = () => {
               {filteredCompetitors.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Monitor className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No competitors in {selectedRoom === 'all' ? 'any room' : selectedRoom}</p>
-                  <p className="text-sm">Competitors will appear here when they start screen capture</p>
+                  <p>Inga deltagare i {selectedRoom === 'all' ? 'något rum' : selectedRoom}</p>
+                  <p className="text-sm">Deltagare visas här när de startar skärminspelning</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -242,12 +243,12 @@ export const AdminDashboard = () => {
                       }`}
                       onClick={() => setSelectedCompetitor(competitor)}
                     >
-                      {/* Screenshot Preview */}
+                      {/* Skärmbildsförhandsvisning */}
                       <div className="aspect-video bg-muted relative">
                         {competitor.latestScreenshot ? (
                           <img
                             src={competitor.latestScreenshot}
-                            alt={`${competitor.name}'s screen`}
+                            alt={`${competitor.name}s skärm`}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -256,12 +257,12 @@ export const AdminDashboard = () => {
                           </div>
                         )}
                         
-                        {/* Status indicator overlay */}
+                        {/* Statusindikator */}
                         <div className="absolute top-2 right-2">
                           <StatusBadge status={competitor.status as 'online' | 'offline' | 'inactive'} />
                         </div>
 
-                        {/* Room badge */}
+                        {/* Rummärke */}
                         {selectedRoom === 'all' && competitor.room && (
                           <div className="absolute top-2 left-2 px-2 py-0.5 bg-background/80 backdrop-blur-sm rounded text-xs font-medium text-foreground">
                             {competitor.room}
@@ -273,10 +274,10 @@ export const AdminDashboard = () => {
                       <div className="p-3">
                         <h3 className="font-medium text-foreground truncate">{competitor.name}</h3>
                         <p className="text-xs text-muted-foreground">
-                          Last seen:{' '}
+                          Senast sedd:{' '}
                           {competitor.last_seen
-                            ? formatDistanceToNow(new Date(competitor.last_seen), { addSuffix: true })
-                            : 'Never'}
+                            ? formatDistanceToNow(new Date(competitor.last_seen), { addSuffix: true, locale: sv })
+                            : 'Aldrig'}
                         </p>
                       </div>
                     </div>
@@ -288,7 +289,7 @@ export const AdminDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Fullscreen Preview Modal */}
+      {/* Fullskärmsförhandsvisning */}
       {selectedCompetitor && (
         <div
           className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -311,12 +312,13 @@ export const AdminDashboard = () => {
                     </span>
                   )}
                   <span className="text-sm text-muted-foreground">
-                    Last seen:{' '}
+                    Senast sedd:{' '}
                     {selectedCompetitor.last_seen
                       ? formatDistanceToNow(new Date(selectedCompetitor.last_seen), {
                           addSuffix: true,
+                          locale: sv,
                         })
-                      : 'Never'}
+                      : 'Aldrig'}
                   </span>
                 </div>
               </div>
@@ -332,14 +334,14 @@ export const AdminDashboard = () => {
               {selectedCompetitor.latestScreenshot ? (
                 <img
                   src={selectedCompetitor.latestScreenshot}
-                  alt={`${selectedCompetitor.name}'s screen`}
+                  alt={`${selectedCompetitor.name}s skärm`}
                   className="w-full h-auto"
                 />
               ) : (
                 <div className="aspect-video flex items-center justify-center bg-muted">
                   <div className="text-center text-muted-foreground">
                     <Monitor className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p>No screenshot available</p>
+                    <p>Ingen skärmbild tillgänglig</p>
                   </div>
                 </div>
               )}

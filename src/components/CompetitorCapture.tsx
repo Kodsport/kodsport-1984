@@ -15,7 +15,7 @@ export const CompetitorCapture = () => {
   const { isCapturing, error, captureCount, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
 
-  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Competitor';
+  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Deltagare';
 
   const handleStart = () => {
     if (room) {
@@ -29,16 +29,16 @@ export const CompetitorCapture = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Camera className="h-5 w-5 text-primary" />
-            Screen Monitoring
+            Skärmövervakning
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Start screen capture to monitor your session during the competition
+            Starta skärminspelning för att övervaka din session under tävlingen
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!isCapturing ? (
             <>
-              {/* Show user name */}
+              {/* Visa användarnamn */}
               <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg border border-border">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="h-5 w-5 text-primary" />
@@ -52,11 +52,11 @@ export const CompetitorCapture = () => {
               <div className="space-y-2">
                 <Label htmlFor="room" className="text-foreground flex items-center gap-2">
                   <DoorOpen className="h-4 w-4" />
-                  Room
+                  Rum
                 </Label>
                 <Select value={room} onValueChange={(value) => setRoom(value as Room)}>
                   <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Select your room" />
+                    <SelectValue placeholder="Välj ditt rum" />
                   </SelectTrigger>
                   <SelectContent>
                     {ROOMS.map((r) => (
@@ -74,13 +74,13 @@ export const CompetitorCapture = () => {
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 golden-glow"
               >
                 <Monitor className="h-4 w-4 mr-2" />
-                Start Screen Capture
+                Starta skärminspelning
               </Button>
 
               <div className="text-xs text-muted-foreground space-y-1">
-                <p>• Your screen will be captured every second</p>
-                <p>• Select "Entire screen" for full monitoring</p>
-                <p>• Keep this tab open during the competition</p>
+                <p>• Din skärm kommer att fångas varje sekund</p>
+                <p>• Välj "Hela skärmen" för fullständig övervakning</p>
+                <p>• Håll denna flik öppen under tävlingen</p>
               </div>
             </>
           ) : (
@@ -88,10 +88,10 @@ export const CompetitorCapture = () => {
               <div className="flex items-center justify-between p-4 bg-success/10 rounded-lg border border-success/20">
                 <div className="flex items-center gap-3">
                   <div className="h-3 w-3 bg-success rounded-full animate-pulse" />
-                  <span className="font-medium text-success">Capturing Active</span>
+                  <span className="font-medium text-success">Inspelning aktiv</span>
                 </div>
                 <span className="text-sm text-muted-foreground font-mono">
-                  {captureCount} captures
+                  {captureCount} bilder
                 </span>
               </div>
 
@@ -101,11 +101,11 @@ export const CompetitorCapture = () => {
                 className="w-full"
               >
                 <MonitorOff className="h-4 w-4 mr-2" />
-                Stop Capture
+                Stoppa inspelning
               </Button>
 
               <p className="text-xs text-muted-foreground text-center">
-                Do not close this window during the competition
+                Stäng inte detta fönster under tävlingen
               </p>
             </div>
           )}
@@ -123,15 +123,15 @@ export const CompetitorCapture = () => {
         <CardHeader>
           <CardTitle className="text-sm text-foreground flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-success" />
-            How it works
+            Så här fungerar det
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-            <li>Enter your name and click "Start Screen Capture"</li>
-            <li>Select "Entire screen" in the browser dialog</li>
-            <li>Keep this tab open during the entire competition</li>
-            <li>Competition admins can monitor all participants in real-time</li>
+            <li>Välj ditt rum och klicka på "Starta skärminspelning"</li>
+            <li>Välj "Hela skärmen" i webbläsarens dialog</li>
+            <li>Håll denna flik öppen under hela tävlingen</li>
+            <li>Tävlingsfunktionärer kan övervaka alla deltagare i realtid</li>
           </ol>
         </CardContent>
       </Card>

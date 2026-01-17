@@ -29,6 +29,7 @@ export const Header = () => {
                 size="sm"
                 onClick={signOut}
                 className="text-muted-foreground hover:text-foreground"
+                title="Logga ut"
               >
                 <LogOut className="h-4 w-4" />
               </Button>

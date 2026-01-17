@@ -16,7 +16,7 @@ export const StatusBadge = ({ status, className }: StatusBadgeProps) => {
       className: 'status-offline',
     },
     inactive: {
-      label: 'Inactive',
+      label: 'Inaktiv',
       className: 'status-inactive',
     },
   };
