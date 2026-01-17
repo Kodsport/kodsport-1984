@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/hooks/useAuth';
 import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
+import { supabase } from '@/integrations/supabase/client';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
@@ -15,11 +16,38 @@ type Room = typeof ROOMS[number] | '';
 export const CompetitorCapture = () => {
   const [room, setRoom] = useState<Room>('');
   const [elapsedTime, setElapsedTime] = useState(0);
-  const { isCapturing, error, startTime, startCapture, stopCapture } = useScreenCapture();
+  const { isCapturing, error, startTime, competitorId, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
-  const { isDevToolsOpen, hasBeenOpened } = useDevToolsDetection();
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Deltagare';
+
+  // Broadcast devtools detection to admins
+  const handleDevToolsDetected = useCallback(async () => {
+    if (!room || !competitorId) return;
+
+    const channel = supabase.channel('admin-alerts');
+    await channel.subscribe();
+    
+    channel.send({
+      type: 'broadcast',
+      event: 'alert',
+      payload: {
+        type: 'devtools',
+        competitorId,
+        competitorName: userName,
+        room,
+        timestamp: Date.now(),
+        message: `${userName} öppnade utvecklarverktyg (Inspect Element)`,
+      },
+    });
+
+    // Unsubscribe after sending
+    setTimeout(() => supabase.removeChannel(channel), 1000);
+  }, [room, competitorId, userName]);
+
+  const { hasBeenOpened } = useDevToolsDetection({
+    onDetected: handleDevToolsDetected,
+  });
 
   // Timer effect
   useEffect(() => {
@@ -136,7 +164,7 @@ export const CompetitorCapture = () => {
               </div>
 
               <Button
-                onClick={stopCapture}
+                onClick={() => stopCapture()}
                 variant="destructive"
                 className="w-full"
               >

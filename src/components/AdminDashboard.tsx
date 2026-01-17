@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { StatusBadge } from './StatusBadge';
-import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video } from 'lucide-react';
+import { useAdminNotifications } from '@/hooks/useAdminNotifications';
+import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
@@ -26,6 +28,8 @@ export const AdminDashboard = () => {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const fetchingRef = useRef(false);
   const channelsRef = useRef<ReturnType<typeof supabase.channel>[]>([]);
+  
+  const { notificationPermission, requestPermission } = useAdminNotifications();
 
   // Hämta deltagare
   const fetchCompetitors = useCallback(async () => {
@@ -236,9 +240,31 @@ export const AdminDashboard = () => {
             ))}
           </TabsList>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <RefreshCw className="h-3 w-3 animate-spin" />
-            Uppdaterad {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: sv })}
+          <div className="flex items-center gap-3">
+            {/* Notification toggle button */}
+            <Button
+              variant={notificationPermission === 'granted' ? 'default' : 'outline'}
+              size="sm"
+              onClick={requestPermission}
+              className="gap-2"
+            >
+              {notificationPermission === 'granted' ? (
+                <>
+                  <Bell className="h-4 w-4" />
+                  Notiser på
+                </>
+              ) : (
+                <>
+                  <BellOff className="h-4 w-4" />
+                  Aktivera notiser
+                </>
+              )}
+            </Button>
+            
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              Uppdaterad {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: sv })}
+            </div>
           </div>
         </div>
 

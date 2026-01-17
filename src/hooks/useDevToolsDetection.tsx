@@ -1,8 +1,24 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
-export const useDevToolsDetection = () => {
+interface DevToolsDetectionOptions {
+  onDetected?: () => void;
+}
+
+export const useDevToolsDetection = (options?: DevToolsDetectionOptions) => {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [hasBeenOpened, setHasBeenOpened] = useState(false);
+  const hasNotifiedRef = useRef(false);
+
+  const handleDetection = useCallback(() => {
+    setIsDevToolsOpen(true);
+    setHasBeenOpened(true);
+    
+    // Only call onDetected once per session
+    if (!hasNotifiedRef.current && options?.onDetected) {
+      hasNotifiedRef.current = true;
+      options.onDetected();
+    }
+  }, [options]);
 
   const checkDevTools = useCallback(() => {
     const threshold = 160;
@@ -12,12 +28,11 @@ export const useDevToolsDetection = () => {
     const isOpen = widthThreshold || heightThreshold;
     
     if (isOpen && !isDevToolsOpen) {
-      setIsDevToolsOpen(true);
-      setHasBeenOpened(true);
+      handleDetection();
     } else if (!isOpen && isDevToolsOpen) {
       setIsDevToolsOpen(false);
     }
-  }, [isDevToolsOpen]);
+  }, [isDevToolsOpen, handleDetection]);
 
   useEffect(() => {
     // Check on mount
@@ -29,13 +44,10 @@ export const useDevToolsDetection = () => {
     // Also use debugger timing detection as backup
     const interval = setInterval(() => {
       const start = performance.now();
-      // This triggers when devtools is open because debugger statement pauses execution
-      // We use a regex-based check that gets slower when devtools console is open
       const element = new Image();
       Object.defineProperty(element, 'id', {
         get: function() {
-          setIsDevToolsOpen(true);
-          setHasBeenOpened(true);
+          handleDetection();
         }
       });
       
@@ -44,10 +56,8 @@ export const useDevToolsDetection = () => {
       console.clear();
       
       const end = performance.now();
-      // If the check took too long, devtools might be open with breakpoints
       if (end - start > 100) {
-        setIsDevToolsOpen(true);
-        setHasBeenOpened(true);
+        handleDetection();
       }
     }, 1000);
 
@@ -55,7 +65,7 @@ export const useDevToolsDetection = () => {
       window.removeEventListener('resize', checkDevTools);
       clearInterval(interval);
     };
-  }, [checkDevTools]);
+  }, [checkDevTools, handleDetection]);
 
   return { isDevToolsOpen, hasBeenOpened };
 };

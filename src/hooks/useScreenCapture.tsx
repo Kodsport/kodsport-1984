@@ -297,7 +297,7 @@ export const useScreenCapture = () => {
     }
   };
 
-  const stopCapture = async () => {
+  const stopCapture = async (notifyAdmins: boolean = true) => {
     // Stop broadcast interval
     if (broadcastIntervalRef.current) {
       clearInterval(broadcastIntervalRef.current);
@@ -313,6 +313,28 @@ export const useScreenCapture = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
+    }
+
+    // Broadcast stop event to admins
+    if (notifyAdmins && state.competitorId && user) {
+      const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown';
+      const alertChannel = supabase.channel('admin-alerts');
+      await alertChannel.subscribe();
+      
+      alertChannel.send({
+        type: 'broadcast',
+        event: 'alert',
+        payload: {
+          type: 'stopped',
+          competitorId: state.competitorId,
+          competitorName: name,
+          room: 'Unknown',
+          timestamp: Date.now(),
+          message: `${name} stoppade sin skärminspelning`,
+        },
+      });
+
+      setTimeout(() => supabase.removeChannel(alertChannel), 1000);
     }
 
     // Unsubscribe from channel
