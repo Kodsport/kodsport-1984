@@ -166,19 +166,19 @@ export const AdminDashboard = () => {
     };
   }, [fetchCompetitors]);
 
-  // Kontrollera offline-deltagare (ingen uppdatering på 10 sekunder)
+  // Check for stale competitors via backend (handles Discord notifications)
   useEffect(() => {
-    const checkOffline = async () => {
-      const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
-      
-      await supabase
-        .from('competitors')
-        .update({ status: 'offline' })
-        .eq('status', 'online')
-        .lt('last_seen', tenSecondsAgo);
+    const checkStaleCompetitors = async () => {
+      try {
+        await supabase.functions.invoke('check-competitors');
+      } catch (err) {
+        console.error('Failed to check stale competitors:', err);
+      }
     };
 
-    const interval = setInterval(checkOffline, 5000);
+    // Run immediately and then every 5 seconds
+    checkStaleCompetitors();
+    const interval = setInterval(checkStaleCompetitors, 5000);
     return () => clearInterval(interval);
   }, []);
 
