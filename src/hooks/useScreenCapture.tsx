@@ -221,11 +221,16 @@ export const useScreenCapture = () => {
       });
 
       // Check if user selected entire screen (monitor)
+      // Note: Firefox doesn't support displaySurface in getSettings(), so we check for support first
       const track = stream.getVideoTracks()[0];
       const settings = track.getSettings();
       const displaySurface = (settings as { displaySurface?: string }).displaySurface;
       
-      if (displaySurface !== 'monitor') {
+      // Check if displaySurface is supported (Chrome, Safari, Edge support it; Firefox doesn't)
+      const supportsDisplaySurface = 'displaySurface' in settings;
+      
+      if (supportsDisplaySurface && displaySurface !== 'monitor') {
+        // Browser supports detection and user didn't select full screen
         stream.getTracks().forEach((t) => t.stop());
         setState((prev) => ({
           ...prev,
@@ -233,6 +238,11 @@ export const useScreenCapture = () => {
         }));
         return;
       }
+      
+      // For Firefox: We can't detect the surface type, but we request 'monitor' preference
+      // and show a warning. The getDisplayMedia call with displaySurface: 'monitor' 
+      // will still show the picker, but Firefox may not respect the preference.
+      // We'll trust the user selected correctly on Firefox.
 
       // Create video element
       const video = document.createElement('video');
