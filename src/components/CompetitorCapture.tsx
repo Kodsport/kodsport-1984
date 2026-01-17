@@ -156,7 +156,7 @@ export const CompetitorCapture = () => {
             <li>Välj ditt rum och klicka på "Starta skärminspelning"</li>
             <li>Välj "Hela skärmen" i webbläsarens dialog</li>
             <li>Håll denna flik öppen under hela tävlingen</li>
-            <li>Tävlingsfunktionärer kan övervaka alla deltagare i realtid</li>
+            <li>Tävlingsfunktionärer kan övervaka alla deltagare i realtid samt granska efter tävling</li>
           </ol>
         </CardContent>
       </Card>
