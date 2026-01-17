@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import fixWebmDuration from 'fix-webm-duration';
 
 interface ScreenCaptureState {
   isCapturing: boolean;
@@ -31,7 +32,9 @@ export const useScreenCapture = () => {
   const recordedChunksRef = useRef<Blob[]>([]);
   const videoSegmentStartRef = useRef<number>(0);
   const videoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const segmentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isRecordingRef = useRef<boolean>(false);
 
   // Compress image for broadcast (smaller size for realtime)
   const compressImageForBroadcast = useCallback(async (
@@ -125,50 +128,69 @@ export const useScreenCapture = () => {
   }, []);
 
   // Upload video segment to storage
-  const uploadVideoSegment = useCallback(async (blob: Blob, segmentStart: number) => {
+  const uploadVideoSegment = useCallback(async (blob: Blob, segmentStart: number, duration: number) => {
     if (!user || !state.competitorId) return;
 
-    const timestamp = segmentStart;
-    const fileName = `${user.id}/${state.competitorId}/${timestamp}.webm`;
+    try {
+      // Fix the WebM duration metadata issue
+      const fixedBlob = await fixWebmDuration(blob, duration, { logger: false });
+      
+      const timestamp = segmentStart;
+      const fileName = `${user.id}/${state.competitorId}/${timestamp}.webm`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('screenshots')
-      .upload(fileName, blob, {
-        contentType: 'video/webm',
-        cacheControl: '3600',
+      const { error: uploadError } = await supabase.storage
+        .from('screenshots')
+        .upload(fileName, fixedBlob, {
+          contentType: 'video/webm',
+          cacheControl: '3600',
+        });
+
+      if (uploadError) {
+        console.error('Video upload error:', uploadError);
+        return;
+      }
+
+      // Record in database
+      await supabase.from('screenshots').insert({
+        competitor_id: state.competitorId,
+        storage_path: fileName,
+        captured_at: new Date(segmentStart).toISOString(),
       });
 
-    if (uploadError) {
-      console.error('Video upload error:', uploadError);
-      return;
+      console.log('Video segment uploaded:', fileName, 'duration:', duration, 'ms');
+    } catch (err) {
+      console.error('Error fixing/uploading video:', err);
     }
-
-    // Record in database
-    await supabase.from('screenshots').insert({
-      competitor_id: state.competitorId,
-      storage_path: fileName,
-      captured_at: new Date(segmentStart).toISOString(),
-    });
-
-    console.log('Video segment uploaded:', fileName);
   }, [user, state.competitorId]);
 
   // Start a new video recording segment
   const startVideoSegment = useCallback(() => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || isRecordingRef.current) return;
+    
+    isRecordingRef.current = true;
 
     const canvas = canvasRef.current;
     
     // Capture stream at 1 FPS
     const stream = canvas.captureStream(VIDEO_FPS);
     
+    // Check codec support and fallback
+    let mimeType = 'video/webm;codecs=vp9';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm;codecs=vp8';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm';
+      }
+    }
+    
     const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9',
+      mimeType,
       videoBitsPerSecond: 500000, // 500kbps for compressed video
     });
 
     recordedChunksRef.current = [];
-    videoSegmentStartRef.current = Date.now();
+    const segmentStartTime = Date.now();
+    videoSegmentStartRef.current = segmentStartTime;
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) {
@@ -177,9 +199,11 @@ export const useScreenCapture = () => {
     };
 
     mediaRecorder.onstop = async () => {
+      isRecordingRef.current = false;
       if (recordedChunksRef.current.length > 0) {
+        const duration = Date.now() - segmentStartTime;
         const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-        await uploadVideoSegment(blob, videoSegmentStartRef.current);
+        await uploadVideoSegment(blob, segmentStartTime, duration);
       }
     };
 
@@ -190,15 +214,17 @@ export const useScreenCapture = () => {
     videoIntervalRef.current = setInterval(drawFrameToRecordingCanvas, 1000);
 
     // Schedule segment end after 1 minute
-    setTimeout(() => {
+    segmentTimeoutRef.current = setTimeout(() => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
         if (videoIntervalRef.current) {
           clearInterval(videoIntervalRef.current);
+          videoIntervalRef.current = null;
         }
         // Start new segment if still capturing
         if (state.isCapturing) {
-          startVideoSegment();
+          // Small delay before starting next segment
+          setTimeout(() => startVideoSegment(), 100);
         }
       }
     }, VIDEO_SEGMENT_DURATION_MS);
@@ -314,6 +340,12 @@ export const useScreenCapture = () => {
       broadcastIntervalRef.current = null;
     }
 
+    // Stop segment timeout
+    if (segmentTimeoutRef.current) {
+      clearTimeout(segmentTimeoutRef.current);
+      segmentTimeoutRef.current = null;
+    }
+
     // Stop video recording
     if (videoIntervalRef.current) {
       clearInterval(videoIntervalRef.current);
@@ -324,6 +356,8 @@ export const useScreenCapture = () => {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
     }
+    
+    isRecordingRef.current = false;
 
     // Broadcast stop event to admins via realtime (for in-app notifications)
     if (notifyAdmins && state.competitorId && user) {
