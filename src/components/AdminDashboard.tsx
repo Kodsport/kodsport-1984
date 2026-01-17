@@ -61,11 +61,13 @@ export const AdminDashboard = () => {
         
         const filteredData = Array.from(latestByUser.values());
         
-        // Sortera: online först, sedan efter senast sedd
+        // Sortera: offline först, sedan alfabetiskt efter namn för determinism
         filteredData.sort((a, b) => {
-          if (a.status === 'online' && b.status !== 'online') return -1;
-          if (a.status !== 'online' && b.status === 'online') return 1;
-          return new Date(b.last_seen || 0).getTime() - new Date(a.last_seen || 0).getTime();
+          // Offline first
+          if (a.status === 'offline' && b.status !== 'offline') return -1;
+          if (a.status !== 'offline' && b.status === 'offline') return 1;
+          // Then by name alphabetically for stable ordering
+          return a.name.localeCompare(b.name, 'sv');
         });
 
         // Merge med live screenshots
