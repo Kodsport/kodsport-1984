@@ -8,6 +8,7 @@ import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/hooks/useAuth';
 import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
 import { supabase } from '@/integrations/supabase/client';
+import { sendDiscordAlert } from '@/lib/discordAlert';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
 
 const ROOMS = ['Rum 41', 'Rum 43'] as const;
@@ -24,6 +25,13 @@ export const CompetitorCapture = () => {
   // Broadcast devtools detection to admins
   const handleDevToolsDetected = useCallback(async () => {
     if (!room || !competitorId) return;
+
+    // Send Discord notification
+    sendDiscordAlert({
+      type: 'devtools',
+      competitorName: userName,
+      room,
+    });
 
     const channel = supabase.channel('admin-alerts');
     await channel.subscribe();
