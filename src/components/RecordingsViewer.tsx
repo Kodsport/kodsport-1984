@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Video, Download, Play, Loader2, Film, Layers } from 'lucide-react';
+import { Video, Download, Play, Loader2, Film, Layers, SkipBack, SkipForward } from 'lucide-react';
 import { formatDistanceToNow, format, differenceInMinutes } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -83,9 +83,11 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
   const [sessions, setSessions] = useState<RecordingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<RecordingSession | null>(null);
-  const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
+  const [segmentUrls, setSegmentUrls] = useState<string[]>([]);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [loadingVideo, setLoadingVideo] = useState(false);
   const [mergeProgress, setMergeProgress] = useState<string>('');
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const fetchRecordings = async () => {
@@ -108,15 +110,19 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
     fetchRecordings();
   }, [competitorId]);
 
-  // Merge recordings into a single video blob
-  const mergeRecordings = useCallback(async (session: RecordingSession) => {
+  // Load all segment URLs for a session and play them sequentially
+  const loadSession = useCallback(async (session: RecordingSession) => {
     setLoadingVideo(true);
     setSelectedSession(session);
+    setCurrentSegmentIndex(0);
     setMergeProgress(`Laddar ${session.recordings.length} segment...`);
 
+    // Cleanup old URLs
+    segmentUrls.forEach(url => URL.revokeObjectURL(url));
+    setSegmentUrls([]);
+
     try {
-      // Download all segments
-      const blobs: Blob[] = [];
+      const urls: string[] = [];
       
       for (let i = 0; i < session.recordings.length; i++) {
         const recording = session.recordings[i];
@@ -124,63 +130,74 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
         
         const { data } = await supabase.storage
           .from('screenshots')
-          .createSignedUrl(recording.storage_path, 300);
+          .createSignedUrl(recording.storage_path, 3600); // 1 hour validity
 
         if (data?.signedUrl) {
-          const response = await fetch(data.signedUrl);
-          if (response.ok) {
-            const blob = await response.blob();
-            blobs.push(blob);
-          }
+          urls.push(data.signedUrl);
         }
       }
 
-      if (blobs.length === 0) {
+      if (urls.length === 0) {
         setMergeProgress('Inga segment kunde laddas');
         setLoadingVideo(false);
         return;
       }
 
-      setMergeProgress('Slår ihop segment...');
-
-      // For WebM, we can concatenate the blobs
-      // Note: This is a simple concatenation that works for segments from the same recording session
-      // For proper merging, you'd need to remux the files, but this works for sequential segments
-      const mergedBlob = new Blob(blobs, { type: 'video/webm' });
-      
-      // Revoke old URL if exists
-      if (mergedVideoUrl) {
-        URL.revokeObjectURL(mergedVideoUrl);
-      }
-      
-      const url = URL.createObjectURL(mergedBlob);
-      setMergedVideoUrl(url);
+      setSegmentUrls(urls);
       setMergeProgress('');
     } catch (err) {
-      console.error('Error merging recordings:', err);
-      setMergeProgress('Fel vid sammanslagning');
+      console.error('Error loading session:', err);
+      setMergeProgress('Fel vid laddning');
     }
 
     setLoadingVideo(false);
-  }, [mergedVideoUrl]);
+  }, [segmentUrls]);
 
-  const downloadMergedVideo = useCallback(async () => {
-    if (!selectedSession || !mergedVideoUrl) return;
+  // Handle video ended - play next segment
+  const handleVideoEnded = useCallback(() => {
+    if (currentSegmentIndex < segmentUrls.length - 1) {
+      setCurrentSegmentIndex(prev => prev + 1);
+    }
+  }, [currentSegmentIndex, segmentUrls.length]);
+
+  // Auto-play when segment changes
+  useEffect(() => {
+    if (videoRef.current && segmentUrls[currentSegmentIndex]) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [currentSegmentIndex, segmentUrls]);
+
+  const goToPreviousSegment = () => {
+    if (currentSegmentIndex > 0) {
+      setCurrentSegmentIndex(prev => prev - 1);
+    }
+  };
+
+  const goToNextSegment = () => {
+    if (currentSegmentIndex < segmentUrls.length - 1) {
+      setCurrentSegmentIndex(prev => prev + 1);
+    }
+  };
+
+  const downloadCurrentSegment = useCallback(async () => {
+    if (!selectedSession || !segmentUrls[currentSegmentIndex]) return;
 
     const link = document.createElement('a');
-    link.href = mergedVideoUrl;
-    link.download = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}.webm`;
+    link.href = segmentUrls[currentSegmentIndex];
+    link.download = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}-segment-${currentSegmentIndex + 1}.webm`;
     link.click();
-  }, [selectedSession, mergedVideoUrl, competitorName]);
+  }, [selectedSession, segmentUrls, currentSegmentIndex, competitorName]);
 
   // Cleanup URLs on unmount
   useEffect(() => {
     return () => {
-      if (mergedVideoUrl) {
-        URL.revokeObjectURL(mergedVideoUrl);
-      }
+      segmentUrls.forEach(url => {
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url);
+        }
+      });
     };
-  }, [mergedVideoUrl]);
+  }, [segmentUrls]);
 
   return (
     <div
@@ -229,7 +246,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
                           ? 'bg-primary/10 border border-primary/30'
                           : 'bg-secondary/50 hover:bg-secondary'
                       }`}
-                      onClick={() => mergeRecordings(session)}
+                      onClick={() => loadSession(session)}
                     >
                       <div className="flex items-center gap-2">
                         <Play className="h-4 w-4 text-primary" />
@@ -268,12 +285,14 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <p className="text-sm text-muted-foreground">{mergeProgress}</p>
                       </div>
-                    ) : mergedVideoUrl ? (
+                    ) : segmentUrls.length > 0 ? (
                       <video
-                        key={mergedVideoUrl}
-                        src={mergedVideoUrl}
+                        ref={videoRef}
+                        key={segmentUrls[currentSegmentIndex]}
+                        src={segmentUrls[currentSegmentIndex]}
                         controls
                         autoPlay
+                        onEnded={handleVideoEnded}
                         className="w-full h-full object-contain"
                       />
                     ) : (
@@ -286,19 +305,39 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
                   {/* Controls */}
                   <div className="flex items-center justify-between mt-4">
                     <div className="text-sm text-muted-foreground">
-                      Session: {format(selectedSession.startTime, 'HH:mm')} - {format(selectedSession.endTime, 'HH:mm')}
-                      <span className="ml-2">({selectedSession.recordings.length} segment sammanslagna)</span>
+                      Segment {currentSegmentIndex + 1} av {segmentUrls.length}
+                      <span className="ml-2 text-xs">
+                        (Spelar automatiskt nästa segment)
+                      </span>
                     </div>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={downloadMergedVideo}
-                      disabled={!mergedVideoUrl}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Ladda ner
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousSegment}
+                        disabled={currentSegmentIndex === 0}
+                      >
+                        <SkipBack className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToNextSegment}
+                        disabled={currentSegmentIndex >= segmentUrls.length - 1}
+                      >
+                        <SkipForward className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadCurrentSegment}
+                        disabled={!segmentUrls[currentSegmentIndex]}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Ladda ner
+                      </Button>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -306,7 +345,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
                   <div className="text-center">
                     <Video className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p>Välj en session för att spela upp</p>
-                    <p className="text-sm mt-2">Segmenten slås ihop automatiskt</p>
+                    <p className="text-sm mt-2">Segmenten spelas i sekvens</p>
                   </div>
                 </div>
               )}
