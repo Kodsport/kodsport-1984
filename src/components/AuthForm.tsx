@@ -169,8 +169,8 @@ export const AuthForm = () => {
 
         <Button
           type="button"
-          variant="ghost"
-          className="w-full text-muted-foreground hover:text-foreground"
+          variant="link"
+          className="w-full"
           onClick={() => setIsLogin(!isLogin)}
         >
           {isLogin ? 'Har du inget konto? Registrera dig' : 'Har du redan ett konto? Logga in'}
