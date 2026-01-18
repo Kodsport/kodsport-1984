@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from './StatusBadge';
 import { RecordingsViewer } from './RecordingsViewer';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
-import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff } from 'lucide-react';
+import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
@@ -208,6 +208,44 @@ export const AdminDashboard = () => {
     setSelectedCompetitor(competitor);
   };
 
+  // Get current index and navigation functions
+  const currentIndex = selectedCompetitor 
+    ? filteredCompetitors.findIndex(c => c.id === selectedCompetitor.id)
+    : -1;
+
+  const navigateToPrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setSelectedCompetitor(filteredCompetitors[currentIndex - 1]);
+    }
+  }, [currentIndex, filteredCompetitors]);
+
+  const navigateToNext = useCallback(() => {
+    if (currentIndex < filteredCompetitors.length - 1) {
+      setSelectedCompetitor(filteredCompetitors[currentIndex + 1]);
+    }
+  }, [currentIndex, filteredCompetitors]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!selectedCompetitor) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigateToPrevious();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigateToNext();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setSelectedCompetitor(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedCompetitor, navigateToPrevious, navigateToNext]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -404,6 +442,34 @@ export const AdminDashboard = () => {
           className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedCompetitor(null)}
         >
+          {/* Left navigation arrow */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-background/80 hover:bg-background disabled:opacity-30"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToPrevious();
+            }}
+            disabled={currentIndex <= 0}
+          >
+            <ChevronLeft className="h-8 w-8" />
+          </Button>
+
+          {/* Right navigation arrow */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-background/80 hover:bg-background disabled:opacity-30"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigateToNext();
+            }}
+            disabled={currentIndex >= filteredCompetitors.length - 1}
+          >
+            <ChevronRight className="h-8 w-8" />
+          </Button>
+
           <div
             className="max-w-5xl w-full animate-fade-in"
             onClick={(e) => e.stopPropagation()}
@@ -418,6 +484,9 @@ export const AdminDashboard = () => {
                       LIVE
                     </span>
                   )}
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    ({currentIndex + 1} / {filteredCompetitors.length})
+                  </span>
                 </h2>
                 <div className="flex items-center gap-2 mt-1">
                   <StatusBadge
@@ -481,7 +550,7 @@ export const AdminDashboard = () => {
             </div>
 
             <p className="mt-3 text-xs text-muted-foreground text-center">
-              Inspelningar sparas automatiskt varje minut för granskning efter tävlingen
+              Använd ← → piltangenter för att navigera • ESC för att stänga
             </p>
           </div>
         </div>
