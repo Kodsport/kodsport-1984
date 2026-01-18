@@ -190,19 +190,38 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
       setLoadProgress('');
     }
 
-    if (!blob || !videoRef.current) return;
+    if (!blob) {
+      console.error('No blob for segment', index);
+      return;
+    }
 
-    // Create blob URL and play
+    // Create blob URL
     const blobUrl = URL.createObjectURL(blob);
     currentBlobUrlRef.current = blobUrl;
-    videoRef.current.src = blobUrl;
     
-    try {
-      await videoRef.current.play();
-      setIsPlaying(true);
-    } catch (err) {
-      console.error('Error playing video:', err);
+    // Wait for video element to be available
+    const video = videoRef.current;
+    if (!video) {
+      console.error('No video element');
+      return;
     }
+
+    // Set up load handler before setting src
+    const handleCanPlay = async () => {
+      video.removeEventListener('canplay', handleCanPlay);
+      try {
+        await video.play();
+        setIsPlaying(true);
+      } catch (err) {
+        // Autoplay might be blocked - that's ok, user can click play
+        console.log('Autoplay blocked, user can click play:', err);
+        setIsPlaying(false);
+      }
+    };
+
+    video.addEventListener('canplay', handleCanPlay);
+    video.src = blobUrl;
+    video.load(); // Explicitly load the new source
 
     // Preload next segments
     preloadSegments(index);
