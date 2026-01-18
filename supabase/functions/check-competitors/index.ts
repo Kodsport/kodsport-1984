@@ -8,6 +8,11 @@ const corsHeaders = {
 
 const STALE_THRESHOLD_SECONDS = 30; // Consider offline if no heartbeat for 30 seconds
 
+// Track recently processed competitors to avoid duplicate notifications
+// Key: competitor.id, Value: timestamp when processed
+const recentlyProcessed = new Map<string, number>();
+const DEDUP_WINDOW_MS = 60000; // Don't re-notify for same competitor within 60 seconds
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -19,6 +24,14 @@ const handler = async (req: Request): Promise<Response> => {
     const discordWebhookUrl = Deno.env.get("DISCORD_WEBHOOK_URL");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Clean up old entries from dedup map
+    const now = Date.now();
+    for (const [id, timestamp] of recentlyProcessed.entries()) {
+      if (now - timestamp > DEDUP_WINDOW_MS) {
+        recentlyProcessed.delete(id);
+      }
+    }
 
     // Find competitors who are marked as 'online' but haven't sent a heartbeat recently
     const staleTime = new Date(Date.now() - STALE_THRESHOLD_SECONDS * 1000).toISOString();
@@ -44,21 +57,38 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`Found ${staleCompetitors.length} stale competitors`);
+    // Filter out recently processed competitors to avoid duplicate notifications
+    const competitorsToProcess = staleCompetitors.filter(c => {
+      const lastProcessed = recentlyProcessed.get(c.id);
+      return !lastProcessed || (now - lastProcessed > DEDUP_WINDOW_MS);
+    });
+
+    if (competitorsToProcess.length === 0) {
+      return new Response(
+        JSON.stringify({ message: "All stale competitors already processed recently", checked: 0 }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log(`Found ${competitorsToProcess.length} stale competitors to process`);
 
     const notifications: Promise<void>[] = [];
 
-    for (const competitor of staleCompetitors) {
+    for (const competitor of competitorsToProcess) {
       // Update status to offline
       const { error: updateError } = await supabase
         .from("competitors")
         .update({ status: "offline", ended_at: new Date().toISOString() })
-        .eq("id", competitor.id);
+        .eq("id", competitor.id)
+        .eq("status", "online"); // Only update if still online (avoid race conditions)
 
       if (updateError) {
         console.error(`Failed to update competitor ${competitor.id}:`, updateError);
         continue;
       }
+
+      // Mark as recently processed
+      recentlyProcessed.set(competitor.id, now);
 
       console.log(`Marked competitor ${competitor.name} as offline`);
 
@@ -74,8 +104,8 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({ 
         message: "Stale competitors processed", 
-        processed: staleCompetitors.length,
-        competitors: staleCompetitors.map(c => c.name)
+        processed: competitorsToProcess.length,
+        competitors: competitorsToProcess.map(c => c.name)
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
