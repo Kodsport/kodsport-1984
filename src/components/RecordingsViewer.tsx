@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Video, Download, Play, Loader2, Film, Layers, SkipBack, SkipForward } from 'lucide-react';
+import { Video, Download, Play, Loader2, Film, Layers } from 'lucide-react';
 import { formatDistanceToNow, format, differenceInMinutes } from 'date-fns';
 import { sv } from 'date-fns/locale';
 
@@ -83,11 +83,17 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
   const [sessions, setSessions] = useState<RecordingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<RecordingSession | null>(null);
-  const [segmentUrls, setSegmentUrls] = useState<string[]>([]);
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [loadingVideo, setLoadingVideo] = useState(false);
-  const [mergeProgress, setMergeProgress] = useState<string>('');
+  const [loadProgress, setLoadProgress] = useState<string>('');
+  const [currentSegment, setCurrentSegment] = useState(0);
+  const [totalSegments, setTotalSegments] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
+  const segmentBlobsRef = useRef<Map<number, Blob>>(new Map());
+  const signedUrlsRef = useRef<string[]>([]);
+  const isLoadingSegmentRef = useRef<Set<number>>(new Set());
+  const currentBlobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchRecordings = async () => {
@@ -110,94 +116,197 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
     fetchRecordings();
   }, [competitorId]);
 
-  // Load all segment URLs for a session and play them sequentially
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (currentBlobUrlRef.current) {
+        URL.revokeObjectURL(currentBlobUrlRef.current);
+      }
+    };
+  }, []);
+
+  // Fetch segment blob with lazy loading
+  const fetchSegmentBlob = useCallback(async (index: number): Promise<Blob | null> => {
+    // Return cached blob if available
+    if (segmentBlobsRef.current.has(index)) {
+      return segmentBlobsRef.current.get(index)!;
+    }
+
+    // Skip if already loading
+    if (isLoadingSegmentRef.current.has(index)) {
+      return null;
+    }
+
+    const url = signedUrlsRef.current[index];
+    if (!url) return null;
+
+    isLoadingSegmentRef.current.add(index);
+
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      segmentBlobsRef.current.set(index, blob);
+      isLoadingSegmentRef.current.delete(index);
+      return blob;
+    } catch (err) {
+      console.error(`Error fetching segment ${index}:`, err);
+      isLoadingSegmentRef.current.delete(index);
+      return null;
+    }
+  }, []);
+
+  // Preload next segments in background
+  const preloadSegments = useCallback(async (currentIndex: number) => {
+    // Preload next 2 segments
+    const preloadCount = 2;
+    for (let i = 1; i <= preloadCount; i++) {
+      const nextIndex = currentIndex + i;
+      if (nextIndex < signedUrlsRef.current.length && !segmentBlobsRef.current.has(nextIndex)) {
+        fetchSegmentBlob(nextIndex);
+      }
+    }
+  }, [fetchSegmentBlob]);
+
+  // Play a specific segment
+  const playSegment = useCallback(async (index: number) => {
+    if (index >= signedUrlsRef.current.length) {
+      setIsPlaying(false);
+      return;
+    }
+
+    setCurrentSegment(index);
+    
+    // Revoke old blob URL
+    if (currentBlobUrlRef.current) {
+      URL.revokeObjectURL(currentBlobUrlRef.current);
+      currentBlobUrlRef.current = null;
+    }
+
+    // Get or fetch the segment
+    let blob = segmentBlobsRef.current.get(index);
+    if (!blob) {
+      setLoadProgress(`Laddar segment ${index + 1}...`);
+      blob = await fetchSegmentBlob(index);
+      setLoadProgress('');
+    }
+
+    if (!blob || !videoRef.current) return;
+
+    // Create blob URL and play
+    const blobUrl = URL.createObjectURL(blob);
+    currentBlobUrlRef.current = blobUrl;
+    videoRef.current.src = blobUrl;
+    
+    try {
+      await videoRef.current.play();
+      setIsPlaying(true);
+    } catch (err) {
+      console.error('Error playing video:', err);
+    }
+
+    // Preload next segments
+    preloadSegments(index);
+  }, [fetchSegmentBlob, preloadSegments]);
+
+  // Handle video ended - auto play next segment
+  const handleVideoEnded = useCallback(() => {
+    const nextIndex = currentSegment + 1;
+    if (nextIndex < signedUrlsRef.current.length) {
+      playSegment(nextIndex);
+    } else {
+      setIsPlaying(false);
+    }
+  }, [currentSegment, playSegment]);
+
+  // Load session - get signed URLs only (lazy load blobs)
   const loadSession = useCallback(async (session: RecordingSession) => {
     setLoadingVideo(true);
     setSelectedSession(session);
-    setCurrentSegmentIndex(0);
-    setMergeProgress(`Laddar ${session.recordings.length} segment...`);
+    setCurrentSegment(0);
+    setTotalSegments(session.recordings.length);
+    setLoadProgress('Hämtar video-länkar...');
 
-    // Cleanup old URLs
-    segmentUrls.forEach(url => URL.revokeObjectURL(url));
-    setSegmentUrls([]);
+    // Clear cached blobs
+    segmentBlobsRef.current.clear();
+    isLoadingSegmentRef.current.clear();
+    signedUrlsRef.current = [];
+
+    if (currentBlobUrlRef.current) {
+      URL.revokeObjectURL(currentBlobUrlRef.current);
+      currentBlobUrlRef.current = null;
+    }
 
     try {
       const urls: string[] = [];
       
-      for (let i = 0; i < session.recordings.length; i++) {
-        const recording = session.recordings[i];
-        setMergeProgress(`Laddar segment ${i + 1} av ${session.recordings.length}...`);
-        
+      // Get all signed URLs in parallel
+      const urlPromises = session.recordings.map(async (recording) => {
         const { data } = await supabase.storage
           .from('screenshots')
-          .createSignedUrl(recording.storage_path, 3600); // 1 hour validity
+          .createSignedUrl(recording.storage_path, 3600);
+        return data?.signedUrl || null;
+      });
 
-        if (data?.signedUrl) {
-          urls.push(data.signedUrl);
-        }
-      }
+      const results = await Promise.all(urlPromises);
+      results.forEach(url => {
+        if (url) urls.push(url);
+      });
 
       if (urls.length === 0) {
-        setMergeProgress('Inga segment kunde laddas');
+        setLoadProgress('Inga segment kunde laddas');
         setLoadingVideo(false);
         return;
       }
 
-      setSegmentUrls(urls);
-      setMergeProgress('');
+      signedUrlsRef.current = urls;
+      setTotalSegments(urls.length);
+
+      // Preload first segment
+      setLoadProgress('Laddar första segmentet...');
+      await fetchSegmentBlob(0);
+      
+      setLoadProgress('');
+      setLoadingVideo(false);
+
+      // Auto-play first segment
+      playSegment(0);
     } catch (err) {
       console.error('Error loading session:', err);
-      setMergeProgress('Fel vid laddning');
+      setLoadProgress('Fel vid laddning');
+      setLoadingVideo(false);
     }
+  }, [fetchSegmentBlob, playSegment]);
 
-    setLoadingVideo(false);
-  }, [segmentUrls]);
+  const downloadAllSegments = useCallback(async () => {
+    if (!selectedSession) return;
 
-  // Handle video ended - play next segment
-  const handleVideoEnded = useCallback(() => {
-    if (currentSegmentIndex < segmentUrls.length - 1) {
-      setCurrentSegmentIndex(prev => prev + 1);
+    for (let i = 0; i < signedUrlsRef.current.length; i++) {
+      const url = signedUrlsRef.current[i];
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}-segment-${i + 1}.webm`;
+      link.click();
+      // Small delay between downloads
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-  }, [currentSegmentIndex, segmentUrls.length]);
+  }, [selectedSession, competitorName]);
 
-  // Auto-play when segment changes
-  useEffect(() => {
-    if (videoRef.current && segmentUrls[currentSegmentIndex]) {
-      videoRef.current.play().catch(() => {});
+  // Calculate total playback position for timeline
+  const getTimelinePosition = useCallback(() => {
+    if (!videoRef.current || totalSegments === 0) return 0;
+    const segmentProgress = (videoRef.current.currentTime / (videoRef.current.duration || 1));
+    return ((currentSegment + segmentProgress) / totalSegments) * 100;
+  }, [currentSegment, totalSegments]);
+
+  // Seek to segment by clicking timeline
+  const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickPosition = (e.clientX - rect.left) / rect.width;
+    const targetSegment = Math.floor(clickPosition * totalSegments);
+    if (targetSegment >= 0 && targetSegment < totalSegments) {
+      playSegment(targetSegment);
     }
-  }, [currentSegmentIndex, segmentUrls]);
-
-  const goToPreviousSegment = () => {
-    if (currentSegmentIndex > 0) {
-      setCurrentSegmentIndex(prev => prev - 1);
-    }
-  };
-
-  const goToNextSegment = () => {
-    if (currentSegmentIndex < segmentUrls.length - 1) {
-      setCurrentSegmentIndex(prev => prev + 1);
-    }
-  };
-
-  const downloadCurrentSegment = useCallback(async () => {
-    if (!selectedSession || !segmentUrls[currentSegmentIndex]) return;
-
-    const link = document.createElement('a');
-    link.href = segmentUrls[currentSegmentIndex];
-    link.download = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}-segment-${currentSegmentIndex + 1}.webm`;
-    link.click();
-  }, [selectedSession, segmentUrls, currentSegmentIndex, competitorName]);
-
-  // Cleanup URLs on unmount
-  useEffect(() => {
-    return () => {
-      segmentUrls.forEach(url => {
-        if (url.startsWith('blob:')) {
-          URL.revokeObjectURL(url);
-        }
-      });
-    };
-  }, [segmentUrls]);
+  }, [totalSegments, playSegment]);
 
   return (
     <div
@@ -283,61 +392,69 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
                     {loadingVideo ? (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-sm text-muted-foreground">{mergeProgress}</p>
+                        <p className="text-sm text-muted-foreground">{loadProgress}</p>
                       </div>
-                    ) : segmentUrls.length > 0 ? (
-                      <video
-                        ref={videoRef}
-                        key={segmentUrls[currentSegmentIndex]}
-                        src={segmentUrls[currentSegmentIndex]}
-                        controls
-                        autoPlay
-                        onEnded={handleVideoEnded}
-                        className="w-full h-full object-contain"
-                      />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                        Kunde inte ladda videon
-                      </div>
+                      <>
+                        <video
+                          ref={videoRef}
+                          controls
+                          onEnded={handleVideoEnded}
+                          onPlay={() => setIsPlaying(true)}
+                          onPause={() => setIsPlaying(false)}
+                          className="w-full h-full object-contain"
+                        />
+                        {loadProgress && (
+                          <div className="absolute top-4 right-4 bg-background/80 px-3 py-1 rounded text-sm text-muted-foreground flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {loadProgress}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
-                  {/* Controls */}
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-muted-foreground">
-                      Segment {currentSegmentIndex + 1} av {segmentUrls.length}
-                      <span className="ml-2 text-xs">
-                        (Spelar automatiskt nästa segment)
+                  {/* Unified timeline */}
+                  <div className="mt-4">
+                    <div 
+                      className="h-2 bg-secondary rounded-full cursor-pointer overflow-hidden relative"
+                      onClick={handleTimelineClick}
+                    >
+                      {/* Segment markers */}
+                      {Array.from({ length: totalSegments }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="absolute top-0 bottom-0 w-px bg-border/50"
+                          style={{ left: `${(i / totalSegments) * 100}%` }}
+                        />
+                      ))}
+                      {/* Progress bar - we'll use a simple segment indicator */}
+                      <div 
+                        className="h-full bg-primary transition-all duration-100"
+                        style={{ width: `${((currentSegment + 1) / totalSegments) * 100}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-xs text-muted-foreground">
+                        Segment {currentSegment + 1} av {totalSegments}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {isPlaying ? 'Spelar' : 'Pausad'} • Fortsätter automatiskt
                       </span>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToPreviousSegment}
-                        disabled={currentSegmentIndex === 0}
-                      >
-                        <SkipBack className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={goToNextSegment}
-                        disabled={currentSegmentIndex >= segmentUrls.length - 1}
-                      >
-                        <SkipForward className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={downloadCurrentSegment}
-                        disabled={!segmentUrls[currentSegmentIndex]}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Ladda ner
-                      </Button>
-                    </div>
+                  {/* Download button */}
+                  <div className="flex items-center justify-end mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={downloadAllSegments}
+                      disabled={totalSegments === 0}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Ladda ner alla segment
+                    </Button>
                   </div>
                 </>
               ) : (
@@ -345,7 +462,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
                   <div className="text-center">
                     <Video className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p>Välj en session för att spela upp</p>
-                    <p className="text-sm mt-2">Segmenten spelas i sekvens</p>
+                    <p className="text-sm mt-2">Segmenten spelas som en kontinuerlig video</p>
                   </div>
                 </div>
               )}
