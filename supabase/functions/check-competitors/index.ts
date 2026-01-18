@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const STALE_THRESHOLD_SECONDS = 10; // Consider offline if no heartbeat for 10 seconds
+const STALE_THRESHOLD_SECONDS = 30; // Consider offline if no heartbeat for 30 seconds
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
