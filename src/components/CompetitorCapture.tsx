@@ -131,23 +131,9 @@ export const CompetitorCapture = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="room" className="text-foreground flex items-center gap-2">
-                  <DoorOpen className="h-4 w-4" />
-                  Rum
-                </Label>
-                <Select value={room} onValueChange={(value) => setRoom(value as Room)}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Välj ditt rum" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROOMS.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
+                <DoorOpen className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-foreground font-medium">Rum: {ROOM}</span>
               </div>
 
               <Button
