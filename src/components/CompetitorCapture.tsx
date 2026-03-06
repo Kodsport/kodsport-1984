@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,11 +9,10 @@ import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
 import { supabase } from '@/integrations/supabase/client';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
 
-const ROOMS = ['Rum 41', 'Rum 43'] as const;
-type Room = typeof ROOMS[number] | '';
+const ROOM = 'Kammaren';
 
 export const CompetitorCapture = () => {
-  const [room, setRoom] = useState<Room>('');
+  const [room] = useState(ROOM);
   const [elapsedTime, setElapsedTime] = useState(0);
   const { isCapturing, error, startTime, competitorId, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
@@ -132,23 +130,9 @@ export const CompetitorCapture = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="room" className="text-foreground flex items-center gap-2">
-                  <DoorOpen className="h-4 w-4" />
-                  Rum
-                </Label>
-                <Select value={room} onValueChange={(value) => setRoom(value as Room)}>
-                  <SelectTrigger className="bg-secondary border-border">
-                    <SelectValue placeholder="Välj ditt rum" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROOMS.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
+                <DoorOpen className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-foreground font-medium">Rum: {ROOM}</span>
               </div>
 
               <Button
