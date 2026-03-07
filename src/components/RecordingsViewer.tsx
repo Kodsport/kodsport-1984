@@ -307,12 +307,21 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
         blob = await response.blob();
       }
 
+      const fileName = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}-segment-${i + 1}.webm`;
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}-segment-${i + 1}.webm`;
+      link.download = fileName;
+      link.rel = 'noopener';
+      link.target = '_blank';
+      link.style.display = 'none';
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+
+      // Delay revoke so browsers have time to start the download
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+
       // Small delay between downloads
       await new Promise(resolve => setTimeout(resolve, 500));
     }
