@@ -13,6 +13,7 @@ interface ScreenCaptureState {
 
 const VIDEO_SEGMENT_DURATION_MS = 60000; // 1 minute per video segment
 const BROADCAST_INTERVAL_MS = 500; // Broadcast every 0.5 seconds (twice per second)
+const HEARTBEAT_INTERVAL_MS = 10000; // Update last_seen every 10 seconds (REST API call)
 const VIDEO_FPS = 5; // 5 frames per second for video recording
 
 export const useScreenCapture = () => {
