@@ -1,14 +1,16 @@
 
 
-## Make Rasmuswario@gmail.com admin
+## Fix: "Ladda ner alla segment" opens video in tab instead of downloading
 
-The user exists with ID `63d991d0-6f97-4622-bed4-23a90ad07995`. I will insert an admin role for them in the `user_roles` table:
+### Problem
+The `download` attribute on `<a>` tags only works for same-origin URLs. Since the signed URLs point to the storage backend (different origin), the browser ignores the `download` attribute and navigates to the URL instead.
 
-```sql
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('63d991d0-6f97-4622-bed4-23a90ad07995', 'admin')
-ON CONFLICT (user_id, role) DO NOTHING;
-```
+### Solution
+In `src/components/RecordingsViewer.tsx`, change `downloadAllSegments` to:
+1. Fetch each segment as a blob (reusing cached blobs from `segmentBlobsRef` when available)
+2. Create a blob URL (`URL.createObjectURL`)
+3. Trigger download via the blob URL (same-origin, so `download` attribute works)
+4. Revoke the blob URL after download
 
-No code changes needed — just a data insert.
+This ensures files are actually downloaded with correct filenames instead of opening in the browser.
 
