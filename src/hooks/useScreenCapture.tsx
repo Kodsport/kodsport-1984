@@ -80,7 +80,7 @@ export const useScreenCapture = () => {
     const imageData = await captureImageForBroadcast(video, canvas, 1920, 0.85);
     if (!imageData) return;
 
-    // Broadcast via Supabase Realtime channel
+    // Broadcast via Supabase Realtime channel (WebSocket, not REST API)
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -93,13 +93,17 @@ export const useScreenCapture = () => {
         },
       });
     }
+  }, [user, state.competitorId, captureImageForBroadcast]);
 
-    // Update last_seen
+  // Send heartbeat to update last_seen (REST API call, runs less frequently)
+  const sendHeartbeat = useCallback(async () => {
+    if (!state.competitorId) return;
+
     await supabase
       .from('competitors')
       .update({ last_seen: new Date().toISOString(), status: 'online' })
       .eq('id', state.competitorId);
-  }, [user, state.competitorId, captureImageForBroadcast]);
+  }, [state.competitorId]);
 
   // Draw frame to recording canvas at higher quality
   const drawFrameToRecordingCanvas = useCallback(() => {
