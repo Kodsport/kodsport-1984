@@ -6,12 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const STALE_THRESHOLD_SECONDS = 60; // Consider offline if no heartbeat for 60 seconds
+const STALE_THRESHOLD_SECONDS = 60;
 
-// Track recently processed competitors to avoid duplicate notifications
-// Key: competitor.id, Value: timestamp when processed
 const recentlyProcessed = new Map<string, number>();
-const DEDUP_WINDOW_MS = 60000; // Don't re-notify for same competitor within 60 seconds
+const DEDUP_WINDOW_MS = 60000;
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -19,11 +17,49 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const discordWebhookUrl = Deno.env.get("DISCORD_WEBHOOK_URL");
+    // Verify JWT - ensure the caller is authenticated
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing authorization header" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Verify user with anon key + their JWT
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Verify user is an admin
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: roleData } = await serviceClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: admin role required" }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const discordWebhookUrl = Deno.env.get("DISCORD_WEBHOOK_URL");
 
     // Clean up old entries from dedup map
     const now = Date.now();
@@ -36,7 +72,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Find competitors who are marked as 'online' but haven't sent a heartbeat recently
     const staleTime = new Date(Date.now() - STALE_THRESHOLD_SECONDS * 1000).toISOString();
 
-    const { data: staleCompetitors, error: fetchError } = await supabase
+    const { data: staleCompetitors, error: fetchError } = await serviceClient
       .from("competitors")
       .select("id, name, room, last_seen, status")
       .eq("status", "online")
@@ -57,7 +93,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Filter out recently processed competitors to avoid duplicate notifications
     const competitorsToProcess = staleCompetitors.filter(c => {
       const lastProcessed = recentlyProcessed.get(c.id);
       return !lastProcessed || (now - lastProcessed > DEDUP_WINDOW_MS);
@@ -75,30 +110,25 @@ const handler = async (req: Request): Promise<Response> => {
     const notifications: Promise<void>[] = [];
 
     for (const competitor of competitorsToProcess) {
-      // Update status to offline
-      const { error: updateError } = await supabase
+      const { error: updateError } = await serviceClient
         .from("competitors")
         .update({ status: "offline", ended_at: new Date().toISOString() })
         .eq("id", competitor.id)
-        .eq("status", "online"); // Only update if still online (avoid race conditions)
+        .eq("status", "online");
 
       if (updateError) {
         console.error(`Failed to update competitor ${competitor.id}:`, updateError);
         continue;
       }
 
-      // Mark as recently processed
       recentlyProcessed.set(competitor.id, now);
-
       console.log(`Marked competitor ${competitor.name} as offline`);
 
-      // Send Discord notification if webhook is configured
       if (discordWebhookUrl) {
         notifications.push(sendDiscordNotification(discordWebhookUrl, competitor));
       }
     }
 
-    // Wait for all Discord notifications to complete
     await Promise.allSettled(notifications);
 
     return new Response(
@@ -112,7 +142,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in check-competitors function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
@@ -126,7 +156,7 @@ async function sendDiscordNotification(
     const embed = {
       title: "⏹️ Screen Recording Stopped",
       description: `**${competitor.name}** stopped their screen recording (connection lost)`,
-      color: 0xffa500, // Orange
+      color: 0xffa500,
       fields: [
         ...(competitor.room ? [{ name: "Room", value: competitor.room, inline: true }] : []),
         { name: "Last Seen", value: competitor.last_seen || "Unknown", inline: true },
