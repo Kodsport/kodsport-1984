@@ -346,6 +346,12 @@ export const useScreenCapture = () => {
       broadcastIntervalRef.current = null;
     }
 
+    // Stop heartbeat interval
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+
     // Stop segment timeout
     if (segmentTimeoutRef.current) {
       clearTimeout(segmentTimeoutRef.current);
