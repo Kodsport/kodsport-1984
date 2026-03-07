@@ -432,9 +432,13 @@ export const useScreenCapture = () => {
       // Draw initial frame
       drawFrameToRecordingCanvas();
 
-      // Start broadcasting screenshots every second
+      // Start broadcasting screenshots every 500ms (WebSocket, no rate limit)
       broadcastScreenshot();
       broadcastIntervalRef.current = setInterval(broadcastScreenshot, BROADCAST_INTERVAL_MS);
+
+      // Start heartbeat for last_seen every 10s (REST API)
+      sendHeartbeat();
+      heartbeatIntervalRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
       // Start video recording
       startVideoSegment();
@@ -444,11 +448,14 @@ export const useScreenCapture = () => {
       if (broadcastIntervalRef.current) {
         clearInterval(broadcastIntervalRef.current);
       }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
       if (videoIntervalRef.current) {
         clearInterval(videoIntervalRef.current);
       }
     };
-  }, [state.isCapturing, state.competitorId, broadcastScreenshot, startVideoSegment, drawFrameToRecordingCanvas]);
+  }, [state.isCapturing, state.competitorId, broadcastScreenshot, sendHeartbeat, startVideoSegment, drawFrameToRecordingCanvas]);
 
   // Cleanup on unmount
   useEffect(() => {
