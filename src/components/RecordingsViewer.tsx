@@ -300,11 +300,19 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
     if (!selectedSession) return;
 
     for (let i = 0; i < signedUrlsRef.current.length; i++) {
-      const url = signedUrlsRef.current[i];
+      // Reuse cached blob or fetch it
+      let blob = segmentBlobsRef.current.get(i);
+      if (!blob) {
+        const response = await fetch(signedUrlsRef.current[i]);
+        blob = await response.blob();
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
+      link.href = blobUrl;
       link.download = `${competitorName}-${format(selectedSession.startTime, 'yyyy-MM-dd-HH-mm')}-segment-${i + 1}.webm`;
       link.click();
+      URL.revokeObjectURL(blobUrl);
       // Small delay between downloads
       await new Promise(resolve => setTimeout(resolve, 500));
     }
