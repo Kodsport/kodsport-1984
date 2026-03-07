@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const STALE_THRESHOLD_SECONDS = 30; // Consider offline if no heartbeat for 30 seconds
+const STALE_THRESHOLD_SECONDS = 60; // Consider offline if no heartbeat for 60 seconds
 
 // Track recently processed competitors to avoid duplicate notifications
 // Key: competitor.id, Value: timestamp when processed

@@ -13,6 +13,7 @@ interface ScreenCaptureState {
 
 const VIDEO_SEGMENT_DURATION_MS = 60000; // 1 minute per video segment
 const BROADCAST_INTERVAL_MS = 500; // Broadcast every 0.5 seconds (twice per second)
+const HEARTBEAT_INTERVAL_MS = 10000; // Update last_seen every 10 seconds (REST API call)
 const VIDEO_FPS = 5; // 5 frames per second for video recording
 
 export const useScreenCapture = () => {
@@ -26,6 +27,7 @@ export const useScreenCapture = () => {
   });
 
   const broadcastIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -78,7 +80,7 @@ export const useScreenCapture = () => {
     const imageData = await captureImageForBroadcast(video, canvas, 1920, 0.85);
     if (!imageData) return;
 
-    // Broadcast via Supabase Realtime channel
+    // Broadcast via Supabase Realtime channel (WebSocket, not REST API)
     if (channelRef.current) {
       channelRef.current.send({
         type: 'broadcast',
@@ -91,13 +93,17 @@ export const useScreenCapture = () => {
         },
       });
     }
+  }, [user, state.competitorId, captureImageForBroadcast]);
 
-    // Update last_seen
+  // Send heartbeat to update last_seen (REST API call, runs less frequently)
+  const sendHeartbeat = useCallback(async () => {
+    if (!state.competitorId) return;
+
     await supabase
       .from('competitors')
       .update({ last_seen: new Date().toISOString(), status: 'online' })
       .eq('id', state.competitorId);
-  }, [user, state.competitorId, captureImageForBroadcast]);
+  }, [state.competitorId]);
 
   // Draw frame to recording canvas at higher quality
   const drawFrameToRecordingCanvas = useCallback(() => {
@@ -340,6 +346,12 @@ export const useScreenCapture = () => {
       broadcastIntervalRef.current = null;
     }
 
+    // Stop heartbeat interval
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+
     // Stop segment timeout
     if (segmentTimeoutRef.current) {
       clearTimeout(segmentTimeoutRef.current);
@@ -420,9 +432,13 @@ export const useScreenCapture = () => {
       // Draw initial frame
       drawFrameToRecordingCanvas();
 
-      // Start broadcasting screenshots every second
+      // Start broadcasting screenshots every 500ms (WebSocket, no rate limit)
       broadcastScreenshot();
       broadcastIntervalRef.current = setInterval(broadcastScreenshot, BROADCAST_INTERVAL_MS);
+
+      // Start heartbeat for last_seen every 10s (REST API)
+      sendHeartbeat();
+      heartbeatIntervalRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
       // Start video recording
       startVideoSegment();
@@ -432,11 +448,14 @@ export const useScreenCapture = () => {
       if (broadcastIntervalRef.current) {
         clearInterval(broadcastIntervalRef.current);
       }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
       if (videoIntervalRef.current) {
         clearInterval(videoIntervalRef.current);
       }
     };
-  }, [state.isCapturing, state.competitorId, broadcastScreenshot, startVideoSegment, drawFrameToRecordingCanvas]);
+  }, [state.isCapturing, state.competitorId, broadcastScreenshot, sendHeartbeat, startVideoSegment, drawFrameToRecordingCanvas]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -446,6 +465,9 @@ export const useScreenCapture = () => {
       }
       if (broadcastIntervalRef.current) {
         clearInterval(broadcastIntervalRef.current);
+      }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
       }
       if (videoIntervalRef.current) {
         clearInterval(videoIntervalRef.current);
