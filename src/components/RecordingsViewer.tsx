@@ -323,7 +323,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, onClose }: Reco
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
 
       // Small delay between downloads
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }, [selectedSession, competitorName]);
 
