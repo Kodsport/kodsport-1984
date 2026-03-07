@@ -466,6 +466,9 @@ export const useScreenCapture = () => {
       if (broadcastIntervalRef.current) {
         clearInterval(broadcastIntervalRef.current);
       }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
       if (videoIntervalRef.current) {
         clearInterval(videoIntervalRef.current);
       }
