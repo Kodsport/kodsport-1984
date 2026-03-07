@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AdminAlert {
   type: 'devtools' | 'stopped';
@@ -13,6 +14,7 @@ interface AdminAlert {
 
 export const useAdminNotifications = () => {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -49,7 +51,6 @@ export const useAdminNotifications = () => {
 
     // Show browser notification if permitted
     if (Notification.permission === 'granted') {
-      const icon = alert.type === 'devtools' ? '⚠️' : '🛑';
       const title = alert.type === 'devtools' 
         ? 'Utvecklarverktyg upptäckta!' 
         : 'Inspelning stoppad!';
@@ -63,8 +64,10 @@ export const useAdminNotifications = () => {
     }
   }, [toast]);
 
-  // Subscribe to admin alerts channel
+  // Subscribe to admin alerts channel - only if user is admin
   useEffect(() => {
+    if (!isAdmin) return;
+
     const channel = supabase.channel('admin-alerts', {
       config: {
         broadcast: { self: false },
@@ -84,7 +87,7 @@ export const useAdminNotifications = () => {
         supabase.removeChannel(channelRef.current);
       }
     };
-  }, [showNotification]);
+  }, [showNotification, isAdmin]);
 
   return {
     notificationPermission,
