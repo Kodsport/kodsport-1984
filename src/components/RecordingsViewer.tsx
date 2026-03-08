@@ -24,6 +24,7 @@ interface RecordingSession {
 interface RecordingsViewerProps {
   competitorId: string;
   competitorName: string;
+  userId?: string;
   onClose: () => void;
 }
 
