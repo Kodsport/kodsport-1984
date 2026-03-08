@@ -561,6 +561,7 @@ export const AdminDashboard = () => {
         <RecordingsViewer
           competitorId={viewingRecordings.id}
           competitorName={viewingRecordings.name}
+          userId={viewingRecordings.user_id}
           onClose={() => setViewingRecordings(null)}
         />
       )}

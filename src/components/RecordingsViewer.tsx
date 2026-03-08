@@ -99,23 +99,40 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
   useEffect(() => {
     const fetchRecordings = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('screenshots')
-        .select('*')
-        .eq('competitor_id', competitorId)
-        .order('captured_at', { ascending: false });
+      try {
+        let competitorIds: string[] = [competitorId];
 
-      if (error) {
-        console.error('Error fetching recordings:', error);
-      } else {
-        setRecordings(data || []);
-        setSessions(groupIntoSessions(data || []));
+        // If userId is provided, fetch all competitor IDs for this user
+        if (userId) {
+          const { data: competitors } = await supabase
+            .from('competitors')
+            .select('id')
+            .eq('user_id', userId);
+          if (competitors && competitors.length > 0) {
+            competitorIds = competitors.map(c => c.id);
+          }
+        }
+
+        const { data, error } = await supabase
+          .from('screenshots')
+          .select('*')
+          .in('competitor_id', competitorIds)
+          .order('captured_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching recordings:', error);
+        } else {
+          setRecordings(data || []);
+          setSessions(groupIntoSessions(data || []));
+        }
+      } catch (err) {
+        console.error('Error fetching recordings:', err);
       }
       setLoading(false);
     };
 
     fetchRecordings();
-  }, [competitorId]);
+  }, [competitorId, userId]);
 
   // Cleanup on unmount
   useEffect(() => {
