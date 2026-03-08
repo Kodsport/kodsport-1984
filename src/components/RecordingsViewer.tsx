@@ -46,7 +46,7 @@ const groupIntoSessions = (recordings: Recording[]): RecordingSession[] => {
     const gap = differenceInMinutes(currTime, prevTime);
 
     // If gap is more than 2 minutes, start a new session
-    if (gap > 2) {
+    if (gap > 2 || sorted[i].competitor_id !== sorted[i - 1].competitor_id) {
       const startTime = new Date(currentSession[0].captured_at);
       const endTime = new Date(currentSession[currentSession.length - 1].captured_at);
       sessions.push({
