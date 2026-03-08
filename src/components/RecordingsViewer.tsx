@@ -79,7 +79,7 @@ const groupIntoSessions = (recordings: Recording[]): RecordingSession[] => {
   return sessions.reverse();
 };
 
-export const RecordingsViewer = ({ competitorId, competitorName, onClose }: RecordingsViewerProps) => {
+export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose }: RecordingsViewerProps) => {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [sessions, setSessions] = useState<RecordingSession[]>([]);
   const [loading, setLoading] = useState(true);
