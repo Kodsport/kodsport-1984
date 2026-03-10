@@ -42,7 +42,7 @@ const Index = () => {
             </Card>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Kodsport Sverige    
+              Säkerhets-SM — Kodsport Sverige
             </p>
           </div>
         </div>
