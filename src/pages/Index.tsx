@@ -29,8 +29,9 @@ const Index = () => {
                 <Logo />
               </div>
               <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">
-                ​bokstavligen 1984, du vågar inte fuska                                  
+                Säkerhets-SM
               </h1>
+              <p className="text-muted-foreground text-sm">Tävlingsövervakning</p>
               
             </div>
 
