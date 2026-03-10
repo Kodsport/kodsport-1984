@@ -11,6 +11,7 @@ export const AuthForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [teamName, setTeamName] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export const AuthForm = () => {
 
     const result = isLogin
       ? await signIn(email, password)
-      : await signUp(email, password, name);
+      : await signUp(email, password, name, teamName);
 
     if (result.error) {
       setError(result.error.message);
@@ -94,20 +95,36 @@ export const AuthForm = () => {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {!isLogin && (
-          <div className="space-y-2">
-            <Label htmlFor="name" className="text-foreground">
-              Fullständigt namn
-            </Label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ange ditt fullständiga namn"
-              required={!isLogin}
-              className="bg-secondary border-border"
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-foreground">
+                Fullständigt namn
+              </Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ange ditt fullständiga namn"
+                required={!isLogin}
+                className="bg-secondary border-border"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="teamName" className="text-foreground">
+                Lagnamn
+              </Label>
+              <Input
+                id="teamName"
+                type="text"
+                value={teamName}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder="Ange ditt lagnamn"
+                required={!isLogin}
+                className="bg-secondary border-border"
+              />
+            </div>
+          </>
         )}
 
         <div className="space-y-2">

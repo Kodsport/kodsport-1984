@@ -29,8 +29,9 @@ const Index = () => {
                 <Logo />
               </div>
               <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">
-                ​bokstavligen 1984, du vågar inte fuska                                  
+                Säkerhets-SM
               </h1>
+              <p className="text-muted-foreground text-sm">Tävlingsövervakning</p>
               
             </div>
 
@@ -41,7 +42,7 @@ const Index = () => {
             </Card>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Kodsport Sverige    
+              Säkerhets-SM — Kodsport Sverige
             </p>
           </div>
         </div>
@@ -86,7 +87,7 @@ const Index = () => {
         <div className="max-w-lg mx-auto animate-fade-in">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Tävlingsmonitor
+              Säkerhets-SM Monitor
             </h1>
             <p className="text-muted-foreground">
               Starta skärminspelning för att delta i den övervakade tävlingen
