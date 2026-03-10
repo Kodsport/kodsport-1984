@@ -8,7 +8,7 @@ import { RecordingsViewer } from './RecordingsViewer';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
 import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { enUS } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
 
 type Competitor = Database['public']['Tables']['competitors']['Row'];
@@ -33,7 +33,6 @@ export const AdminDashboard = () => {
   
   const { notificationPermission, requestPermission } = useAdminNotifications();
 
-  // Hämta deltagare
   const fetchCompetitors = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
@@ -48,7 +47,6 @@ export const AdminDashboard = () => {
         .order('started_at', { ascending: false });
 
       if (data) {
-        // Filtrera bort gamla sessioner - visa endast senaste per användare
         const latestByUser = new Map<string, typeof data[0]>();
         data.forEach(competitor => {
           const existing = latestByUser.get(competitor.user_id);
@@ -63,16 +61,12 @@ export const AdminDashboard = () => {
         
         const filteredData = Array.from(latestByUser.values());
         
-        // Sortera: offline först, sedan alfabetiskt efter namn för determinism
         filteredData.sort((a, b) => {
-          // Offline first
           if (a.status === 'offline' && b.status !== 'offline') return -1;
           if (a.status !== 'offline' && b.status === 'offline') return 1;
-          // Then by name alphabetically for stable ordering
-          return a.name.localeCompare(b.name, 'sv');
+          return a.name.localeCompare(b.name);
         });
 
-        // Merge med live screenshots
         const competitorsWithScreenshots = filteredData.map(competitor => ({
           ...competitor,
           latestScreenshot: liveScreenshots.get(competitor.id) || null,
@@ -88,15 +82,12 @@ export const AdminDashboard = () => {
     }
   }, [liveScreenshots]);
 
-  // Prenumerera på live-sändningar för varje rum
   useEffect(() => {
-    // Rensa gamla kanaler
     channelsRef.current.forEach(channel => {
       supabase.removeChannel(channel);
     });
     channelsRef.current = [];
 
-    // Skapa kanaler för varje rum
     ROOMS.forEach(room => {
       const channel = supabase.channel(`live-screenshots-${room}`, {
         config: {
@@ -118,7 +109,6 @@ export const AdminDashboard = () => {
           return newMap;
         });
 
-        // Uppdatera kompetitors skärmbild direkt
         setCompetitors(prev => 
           prev.map(c => 
             c.id === competitorId 
@@ -127,7 +117,6 @@ export const AdminDashboard = () => {
           )
         );
 
-        // Uppdatera även vald deltagare om den matchar
         setSelectedCompetitor(prev => 
           prev?.id === competitorId 
             ? { ...prev, latestScreenshot: imageData, isLive: true }
@@ -149,7 +138,6 @@ export const AdminDashboard = () => {
   useEffect(() => {
     fetchCompetitors();
 
-    // Prenumerera på realtidsuppdateringar för competitors-tabellen
     const channel = supabase
       .channel('competitors-realtime')
       .on(
@@ -159,7 +147,6 @@ export const AdminDashboard = () => {
       )
       .subscribe();
 
-    // Uppdatera var 5:e sekund
     const interval = setInterval(fetchCompetitors, 5000);
 
     return () => {
@@ -168,7 +155,6 @@ export const AdminDashboard = () => {
     };
   }, [fetchCompetitors]);
 
-  // Check for stale competitors via backend (handles Discord notifications)
   useEffect(() => {
     const checkStaleCompetitors = async () => {
       try {
@@ -178,13 +164,11 @@ export const AdminDashboard = () => {
       }
     };
 
-    // Run immediately and then every 5 seconds
     checkStaleCompetitors();
     const interval = setInterval(checkStaleCompetitors, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Filtrera deltagare efter rum
   const filteredCompetitors = selectedRoom === 'all' 
     ? competitors 
     : competitors.filter(c => c.room === selectedRoom);
@@ -192,7 +176,6 @@ export const AdminDashboard = () => {
   const onlineCount = filteredCompetitors.filter((c) => c.status === 'online').length;
   const offlineCount = filteredCompetitors.filter((c) => c.status === 'offline').length;
 
-  // Hämta antal per rum
   const roomCounts = ROOMS.reduce((acc, room) => {
     const roomCompetitors = competitors.filter(c => c.room === room);
     acc[room] = {
@@ -203,12 +186,10 @@ export const AdminDashboard = () => {
     return acc;
   }, {} as Record<string, { total: number; online: number; offline: number }>);
 
-  // Hantera klick på deltagare
   const handleCompetitorClick = (competitor: CompetitorWithScreenshot) => {
     setSelectedCompetitor(competitor);
   };
 
-  // Get current index and navigation functions
   const currentIndex = selectedCompetitor 
     ? filteredCompetitors.findIndex(c => c.id === selectedCompetitor.id)
     : -1;
@@ -225,7 +206,6 @@ export const AdminDashboard = () => {
     }
   }, [currentIndex, filteredCompetitors]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (!selectedCompetitor) return;
 
@@ -256,13 +236,12 @@ export const AdminDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Rumflikar */}
       <Tabs value={selectedRoom} onValueChange={setSelectedRoom}>
         <div className="flex items-center justify-between">
           <TabsList className="bg-secondary">
             <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Users className="h-4 w-4 mr-2" />
-              Alla rum ({competitors.length})
+              All rooms ({competitors.length})
             </TabsTrigger>
             {ROOMS.map((room) => (
               <TabsTrigger 
@@ -283,7 +262,6 @@ export const AdminDashboard = () => {
           </TabsList>
 
           <div className="flex items-center gap-3">
-            {/* Notification toggle button */}
             <Button
               variant={notificationPermission === 'granted' ? 'default' : 'outline'}
               size="sm"
@@ -293,24 +271,23 @@ export const AdminDashboard = () => {
               {notificationPermission === 'granted' ? (
                 <>
                   <Bell className="h-4 w-4" />
-                  Notiser på
+                  Notifications on
                 </>
               ) : (
                 <>
                   <BellOff className="h-4 w-4" />
-                  Aktivera notiser
+                  Enable notifications
                 </>
               )}
             </Button>
             
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <RefreshCw className="h-3 w-3 animate-spin" />
-              Uppdaterad {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: sv })}
+              Updated {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: enUS })}
             </div>
           </div>
         </div>
 
-        {/* Statistik */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <Card className="glass-panel">
             <CardContent className="p-4 flex items-center gap-4">
@@ -320,7 +297,7 @@ export const AdminDashboard = () => {
               <div>
                 <p className="text-2xl font-bold text-foreground">{filteredCompetitors.length}</p>
                 <p className="text-sm text-muted-foreground">
-                  {selectedRoom === 'all' ? 'Totalt antal deltagare' : `I ${selectedRoom}`}
+                  {selectedRoom === 'all' ? 'Total participants' : `In ${selectedRoom}`}
                 </p>
               </div>
             </CardContent>
@@ -333,7 +310,7 @@ export const AdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{onlineCount}</p>
-                <p className="text-sm text-muted-foreground">Online nu</p>
+                <p className="text-sm text-muted-foreground">Online now</p>
               </div>
             </CardContent>
           </Card>
@@ -345,19 +322,18 @@ export const AdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold text-foreground">{offlineCount}</p>
-                <p className="text-sm text-muted-foreground">Offline / Varning</p>
+                <p className="text-sm text-muted-foreground">Offline / Warning</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Innehåll för varje flik */}
         <TabsContent value={selectedRoom} className="mt-4">
           <Card className="glass-panel">
             <CardHeader>
               <CardTitle className="text-foreground flex items-center gap-2">
                 <Eye className="h-5 w-5 text-primary" />
-                Live-övervakning
+                Live Monitoring
                 {selectedRoom !== 'all' && (
                   <span className="text-sm font-normal text-muted-foreground">— {selectedRoom}</span>
                 )}
@@ -367,8 +343,8 @@ export const AdminDashboard = () => {
               {filteredCompetitors.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Monitor className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Inga deltagare i {selectedRoom === 'all' ? 'något rum' : selectedRoom}</p>
-                  <p className="text-sm">Deltagare visas här när de startar skärminspelning</p>
+                  <p>No participants in {selectedRoom === 'all' ? 'any room' : selectedRoom}</p>
+                  <p className="text-sm">Participants will appear here when they start screen recording</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -382,12 +358,11 @@ export const AdminDashboard = () => {
                       }`}
                       onClick={() => handleCompetitorClick(competitor)}
                     >
-                      {/* Skärmbildsförhandsvisning */}
                       <div className="aspect-video bg-muted relative">
                         {competitor.latestScreenshot ? (
                           <img
                             src={competitor.latestScreenshot}
-                            alt={`${competitor.name}s skärm`}
+                            alt={`${competitor.name}'s screen`}
                             className="w-full h-full object-cover"
                           />
                         ) : (
@@ -396,7 +371,6 @@ export const AdminDashboard = () => {
                           </div>
                         )}
                         
-                        {/* Live-indikator */}
                         {competitor.isLive && (
                           <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 bg-destructive text-destructive-foreground rounded text-xs font-medium">
                             <span className="h-2 w-2 bg-white rounded-full animate-pulse" />
@@ -404,12 +378,10 @@ export const AdminDashboard = () => {
                           </div>
                         )}
 
-                        {/* Statusindikator */}
                         <div className="absolute top-2 right-2">
                           <StatusBadge status={competitor.status as 'online' | 'offline' | 'inactive'} />
                         </div>
 
-                        {/* Rummärke */}
                         {selectedRoom === 'all' && competitor.room && (
                           <div className="absolute top-2 left-2 px-2 py-0.5 bg-background/80 backdrop-blur-sm rounded text-xs font-medium text-foreground">
                             {competitor.room}
@@ -417,14 +389,13 @@ export const AdminDashboard = () => {
                         )}
                       </div>
 
-                      {/* Info */}
                       <div className="p-3">
                         <h3 className="font-medium text-foreground truncate">{competitor.name}</h3>
                         <p className="text-xs text-muted-foreground">
-                          Senast sedd:{' '}
+                          Last seen:{' '}
                           {competitor.last_seen
-                            ? formatDistanceToNow(new Date(competitor.last_seen), { addSuffix: true, locale: sv })
-                            : 'Aldrig'}
+                            ? formatDistanceToNow(new Date(competitor.last_seen), { addSuffix: true, locale: enUS })
+                            : 'Never'}
                         </p>
                       </div>
                     </div>
@@ -436,13 +407,11 @@ export const AdminDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Fullskärmsförhandsvisning */}
       {selectedCompetitor && (
         <div
           className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedCompetitor(null)}
         >
-          {/* Left navigation arrow */}
           <Button
             variant="ghost"
             size="icon"
@@ -456,7 +425,6 @@ export const AdminDashboard = () => {
             <ChevronLeft className="h-8 w-8" />
           </Button>
 
-          {/* Right navigation arrow */}
           <Button
             variant="ghost"
             size="icon"
@@ -498,13 +466,13 @@ export const AdminDashboard = () => {
                     </span>
                   )}
                   <span className="text-sm text-muted-foreground">
-                    Senast sedd:{' '}
+                    Last seen:{' '}
                     {selectedCompetitor.last_seen
                       ? formatDistanceToNow(new Date(selectedCompetitor.last_seen), {
                           addSuffix: true,
-                          locale: sv,
+                          locale: enUS,
                         })
-                      : 'Aldrig'}
+                      : 'Never'}
                   </span>
                 </div>
               </div>
@@ -520,21 +488,20 @@ export const AdminDashboard = () => {
               {selectedCompetitor.latestScreenshot ? (
                 <img
                   src={selectedCompetitor.latestScreenshot}
-                  alt={`${selectedCompetitor.name}s skärm`}
+                  alt={`${selectedCompetitor.name}'s screen`}
                   className="w-full h-auto"
                 />
               ) : (
                 <div className="aspect-video flex items-center justify-center bg-muted">
                   <div className="text-center text-muted-foreground">
                     <Monitor className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p>Ingen skärmbild tillgänglig</p>
-                    <p className="text-sm mt-2">Väntar på live-sändning...</p>
+                    <p>No screenshot available</p>
+                    <p className="text-sm mt-2">Waiting for live broadcast...</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Video recordings button */}
             <div className="mt-4 flex items-center gap-4">
               <Button
                 variant="outline"
@@ -545,18 +512,17 @@ export const AdminDashboard = () => {
                 className="flex-1"
               >
                 <Video className="h-4 w-4 mr-2" />
-                Visa inspelningar
+                View Recordings
               </Button>
             </div>
 
             <p className="mt-3 text-xs text-muted-foreground text-center">
-              Använd ← → piltangenter för att navigera • ESC för att stänga
+              Use ← → arrow keys to navigate • ESC to close
             </p>
           </div>
         </div>
       )}
 
-      {/* Recordings Viewer Modal */}
       {viewingRecordings && (
         <RecordingsViewer
           competitorId={viewingRecordings.id}

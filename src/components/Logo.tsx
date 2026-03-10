@@ -9,10 +9,10 @@ export const Logo = () => {
       </div>
       <div className="flex flex-col">
         <span className="text-lg font-bold tracking-tight text-foreground">
-          Säkerhets-
+          Security
         </span>
         <span className="text-sm font-semibold text-primary -mt-1">
-          SM
+          Championship
         </span>
       </div>
     </div>

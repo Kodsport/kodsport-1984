@@ -266,7 +266,7 @@ export const useScreenCapture = () => {
         stream.getTracks().forEach((t) => t.stop());
         setState((prev) => ({
           ...prev,
-          error: 'Du måste välja "Hela skärmen" för att delta. Försök igen och välj hela skärmen.',
+          error: 'You must select "Entire Screen" to participate. Try again and select the entire screen.',
         }));
         return;
       }
@@ -387,7 +387,7 @@ export const useScreenCapture = () => {
           competitorName: name,
           room: room || 'Unknown',
           timestamp: Date.now(),
-          message: `${name} stoppade sin skärminspelning`,
+          message: `${name} stopped their screen recording`,
         },
       });
 

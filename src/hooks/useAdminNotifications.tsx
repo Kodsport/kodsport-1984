@@ -18,7 +18,6 @@ export const useAdminNotifications = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Request notification permission
   const requestPermission = useCallback(async () => {
     if (!('Notification' in window)) {
       console.log('This browser does not support notifications');
@@ -40,20 +39,17 @@ export const useAdminNotifications = () => {
     return false;
   }, []);
 
-  // Show notification
   const showNotification = useCallback((alert: AdminAlert) => {
-    // Always show toast
     toast({
-      title: alert.type === 'devtools' ? '⚠️ Utvecklarverktyg upptäckta!' : '🛑 Inspelning stoppad!',
+      title: alert.type === 'devtools' ? '⚠️ Developer tools detected!' : '🛑 Recording stopped!',
       description: alert.message,
       variant: 'destructive',
     });
 
-    // Show browser notification if permitted
     if (Notification.permission === 'granted') {
       const title = alert.type === 'devtools' 
-        ? 'Utvecklarverktyg upptäckta!' 
-        : 'Inspelning stoppad!';
+        ? 'Developer tools detected!' 
+        : 'Recording stopped!';
 
       new Notification(title, {
         body: alert.message,
@@ -64,7 +60,6 @@ export const useAdminNotifications = () => {
     }
   }, [toast]);
 
-  // Subscribe to admin alerts channel - only if user is admin
   useEffect(() => {
     if (!isAdmin) return;
 

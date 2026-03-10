@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Video, Download, Play, Loader2, Film, Layers } from 'lucide-react';
 import { formatDistanceToNow, format, differenceInMinutes } from 'date-fns';
-import { sv } from 'date-fns/locale';
+import { enUS } from 'date-fns/locale';
 
 interface Recording {
   id: string;
@@ -18,7 +18,7 @@ interface RecordingSession {
   startTime: Date;
   endTime: Date;
   recordings: Recording[];
-  duration: number; // in minutes
+  duration: number;
 }
 
 interface RecordingsViewerProps {
@@ -28,11 +28,9 @@ interface RecordingsViewerProps {
   onClose: () => void;
 }
 
-// Group recordings into sessions (segments within 2 minutes of each other)
 const groupIntoSessions = (recordings: Recording[]): RecordingSession[] => {
   if (recordings.length === 0) return [];
 
-  // Sort by time ascending
   const sorted = [...recordings].sort(
     (a, b) => new Date(a.captured_at).getTime() - new Date(b.captured_at).getTime()
   );
@@ -45,7 +43,6 @@ const groupIntoSessions = (recordings: Recording[]): RecordingSession[] => {
     const currTime = new Date(sorted[i].captured_at);
     const gap = differenceInMinutes(currTime, prevTime);
 
-    // If gap is more than 2 minutes, start a new session
     if (gap > 2 || sorted[i].competitor_id !== sorted[i - 1].competitor_id) {
       const startTime = new Date(currentSession[0].captured_at);
       const endTime = new Date(currentSession[currentSession.length - 1].captured_at);
@@ -62,7 +59,6 @@ const groupIntoSessions = (recordings: Recording[]): RecordingSession[] => {
     }
   }
 
-  // Add last session
   if (currentSession.length > 0) {
     const startTime = new Date(currentSession[0].captured_at);
     const endTime = new Date(currentSession[currentSession.length - 1].captured_at);
@@ -75,7 +71,6 @@ const groupIntoSessions = (recordings: Recording[]): RecordingSession[] => {
     });
   }
 
-  // Return in reverse chronological order
   return sessions.reverse();
 };
 
@@ -102,7 +97,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
       try {
         let competitorIds: string[] = [competitorId];
 
-        // If userId is provided, fetch all competitor IDs for this user
         if (userId) {
           const { data: competitors } = await supabase
             .from('competitors')
@@ -134,7 +128,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     fetchRecordings();
   }, [competitorId, userId]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (currentBlobUrlRef.current) {
@@ -143,14 +136,11 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     };
   }, []);
 
-  // Fetch segment blob with lazy loading
   const fetchSegmentBlob = useCallback(async (index: number): Promise<Blob | null> => {
-    // Return cached blob if available
     if (segmentBlobsRef.current.has(index)) {
       return segmentBlobsRef.current.get(index)!;
     }
 
-    // Skip if already loading
     if (isLoadingSegmentRef.current.has(index)) {
       return null;
     }
@@ -173,9 +163,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     }
   }, []);
 
-  // Preload next segments in background
   const preloadSegments = useCallback(async (currentIndex: number) => {
-    // Preload next 2 segments
     const preloadCount = 2;
     for (let i = 1; i <= preloadCount; i++) {
       const nextIndex = currentIndex + i;
@@ -185,7 +173,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     }
   }, [fetchSegmentBlob]);
 
-  // Play a specific segment
   const playSegment = useCallback(async (index: number) => {
     if (index >= signedUrlsRef.current.length) {
       setIsPlaying(false);
@@ -194,16 +181,14 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
 
     setCurrentSegment(index);
     
-    // Revoke old blob URL
     if (currentBlobUrlRef.current) {
       URL.revokeObjectURL(currentBlobUrlRef.current);
       currentBlobUrlRef.current = null;
     }
 
-    // Get or fetch the segment
     let blob = segmentBlobsRef.current.get(index);
     if (!blob) {
-      setLoadProgress(`Laddar segment ${index + 1}...`);
+      setLoadProgress(`Loading segment ${index + 1}...`);
       blob = await fetchSegmentBlob(index);
       setLoadProgress('');
     }
@@ -213,25 +198,21 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
       return;
     }
 
-    // Create blob URL
     const blobUrl = URL.createObjectURL(blob);
     currentBlobUrlRef.current = blobUrl;
     
-    // Wait for video element to be available
     const video = videoRef.current;
     if (!video) {
       console.error('No video element');
       return;
     }
 
-    // Set up load handler before setting src
     const handleCanPlay = async () => {
       video.removeEventListener('canplay', handleCanPlay);
       try {
         await video.play();
         setIsPlaying(true);
       } catch (err) {
-        // Autoplay might be blocked - that's ok, user can click play
         console.log('Autoplay blocked, user can click play:', err);
         setIsPlaying(false);
       }
@@ -239,13 +220,11 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
 
     video.addEventListener('canplay', handleCanPlay);
     video.src = blobUrl;
-    video.load(); // Explicitly load the new source
+    video.load();
 
-    // Preload next segments
     preloadSegments(index);
   }, [fetchSegmentBlob, preloadSegments]);
 
-  // Handle video ended - auto play next segment
   const handleVideoEnded = useCallback(() => {
     const nextIndex = currentSegment + 1;
     if (nextIndex < signedUrlsRef.current.length) {
@@ -255,15 +234,13 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     }
   }, [currentSegment, playSegment]);
 
-  // Load session - get signed URLs only (lazy load blobs)
   const loadSession = useCallback(async (session: RecordingSession) => {
     setLoadingVideo(true);
     setSelectedSession(session);
     setCurrentSegment(0);
     setTotalSegments(session.recordings.length);
-    setLoadProgress('Hämtar video-länkar...');
+    setLoadProgress('Fetching video links...');
 
-    // Clear cached blobs
     segmentBlobsRef.current.clear();
     isLoadingSegmentRef.current.clear();
     signedUrlsRef.current = [];
@@ -276,7 +253,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     try {
       const urls: string[] = [];
       
-      // Get all signed URLs in parallel
       const urlPromises = session.recordings.map(async (recording) => {
         const { data } = await supabase.storage
           .from('screenshots')
@@ -290,7 +266,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
       });
 
       if (urls.length === 0) {
-        setLoadProgress('Inga segment kunde laddas');
+        setLoadProgress('No segments could be loaded');
         setLoadingVideo(false);
         return;
       }
@@ -298,18 +274,16 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
       signedUrlsRef.current = urls;
       setTotalSegments(urls.length);
 
-      // Preload first segment
-      setLoadProgress('Laddar första segmentet...');
+      setLoadProgress('Loading first segment...');
       await fetchSegmentBlob(0);
       
       setLoadProgress('');
       setLoadingVideo(false);
 
-      // Auto-play first segment
       playSegment(0);
     } catch (err) {
       console.error('Error loading session:', err);
-      setLoadProgress('Fel vid laddning');
+      setLoadProgress('Error loading');
       setLoadingVideo(false);
     }
   }, [fetchSegmentBlob, playSegment]);
@@ -318,7 +292,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
     if (!selectedSession) return;
 
     for (let i = 0; i < signedUrlsRef.current.length; i++) {
-      // Reuse cached blob or fetch it
       let blob = segmentBlobsRef.current.get(i);
       if (!blob) {
         const response = await fetch(signedUrlsRef.current[i]);
@@ -337,22 +310,17 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
       link.click();
       document.body.removeChild(link);
 
-      // Delay revoke so browsers have time to start the download
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-
-      // Small delay between downloads
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }, [selectedSession, competitorName]);
 
-  // Calculate total playback position for timeline
   const getTimelinePosition = useCallback(() => {
     if (!videoRef.current || totalSegments === 0) return 0;
     const segmentProgress = (videoRef.current.currentTime / (videoRef.current.duration || 1));
     return ((currentSegment + segmentProgress) / totalSegments) * 100;
   }, [currentSegment, totalSegments]);
 
-  // Seek to segment by clicking timeline
   const handleTimelineClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickPosition = (e.clientX - rect.left) / rect.width;
@@ -376,7 +344,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
             <div className="flex items-center justify-between">
               <CardTitle className="text-foreground flex items-center gap-2">
                 <Video className="h-5 w-5 text-primary" />
-                Inspelningar - {competitorName}
+                Recordings - {competitorName}
               </CardTitle>
               <button
                 onClick={onClose}
@@ -391,14 +359,14 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
             <div className="w-72 flex-shrink-0 overflow-y-auto border-r border-border pr-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
                 <Film className="h-4 w-4" />
-                {sessions.length} sessioner ({recordings.length} segment)
+                {sessions.length} sessions ({recordings.length} segments)
               </h3>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : sessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Inga inspelningar hittades</p>
+                <p className="text-sm text-muted-foreground">No recordings found</p>
               ) : (
                 <div className="space-y-2">
                   {sessions.map((session) => (
@@ -418,19 +386,19 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {format(session.startTime, 'd MMM yyyy', { locale: sv })}
+                        {format(session.startTime, 'd MMM yyyy', { locale: enUS })}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Layers className="h-3 w-3" />
-                          {session.recordings.length} segment
+                          {session.recordings.length} segments
                         </span>
                         <span className="text-xs text-muted-foreground">
                           ~{session.duration} min
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {formatDistanceToNow(session.startTime, { addSuffix: true, locale: sv })}
+                        {formatDistanceToNow(session.startTime, { addSuffix: true, locale: enUS })}
                       </p>
                     </div>
                   ))}
@@ -474,7 +442,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
                       className="h-2 bg-secondary rounded-full cursor-pointer overflow-hidden relative"
                       onClick={handleTimelineClick}
                     >
-                      {/* Segment markers */}
                       {Array.from({ length: totalSegments }).map((_, i) => (
                         <div
                           key={i}
@@ -482,7 +449,6 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
                           style={{ left: `${(i / totalSegments) * 100}%` }}
                         />
                       ))}
-                      {/* Progress bar - we'll use a simple segment indicator */}
                       <div 
                         className="h-full bg-primary transition-all duration-100"
                         style={{ width: `${((currentSegment + 1) / totalSegments) * 100}%` }}
@@ -490,10 +456,10 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
                     </div>
                     <div className="flex justify-between mt-1">
                       <span className="text-xs text-muted-foreground">
-                        Segment {currentSegment + 1} av {totalSegments}
+                        Segment {currentSegment + 1} of {totalSegments}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {isPlaying ? 'Spelar' : 'Pausad'} • Fortsätter automatiskt
+                        {isPlaying ? 'Playing' : 'Paused'} • Auto-continues
                       </span>
                     </div>
                   </div>
@@ -507,7 +473,7 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
                       disabled={totalSegments === 0}
                     >
                       <Download className="h-4 w-4 mr-2" />
-                      Ladda ner alla segment
+                      Download all segments
                     </Button>
                   </div>
                 </>
@@ -515,8 +481,8 @@ export const RecordingsViewer = ({ competitorId, competitorName, userId, onClose
                 <div className="flex-1 flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <Video className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p>Välj en session för att spela upp</p>
-                    <p className="text-sm mt-2">Segmenten spelas som en kontinuerlig video</p>
+                    <p>Select a session to play</p>
+                    <p className="text-sm mt-2">Segments play as a continuous video</p>
                   </div>
                 </div>
               )}
