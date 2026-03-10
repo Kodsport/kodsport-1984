@@ -19,7 +19,6 @@ const Index = () => {
       </div>;
   }
 
-  // Inte inloggad - visa inloggningsformulär
   if (!user) {
     return <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1 flex items-center justify-center p-4">
@@ -28,11 +27,8 @@ const Index = () => {
               <div className="flex justify-center mb-6">
                 <Logo />
               </div>
-              <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">DU vågar inte fuska
-
-            </h1>
-              <p className="text-muted-foreground text-sm">Tävlingsövervakning</p>
-              
+              <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">DON'T you dare cheat</h1>
+              <p className="text-muted-foreground text-sm">Competition Monitoring</p>
             </div>
 
             <Card className="glass-panel card-elevated">
@@ -42,14 +38,13 @@ const Index = () => {
             </Card>
 
             <p className="text-center text-xs text-muted-foreground mt-6">
-              Säkerhets-SM — Kodsport Sverige
+              Security Championship — Kodsport Sverige
             </p>
           </div>
         </div>
       </div>;
   }
 
-  // Adminvy
   if (isAdmin) {
     return <div className="min-h-screen bg-background">
         <Header />
@@ -62,7 +57,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger value="capture" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Monitor className="h-4 w-4 mr-2" />
-                Deltagarvy
+                Participant View
               </TabsTrigger>
             </TabsList>
 
@@ -80,17 +75,16 @@ const Index = () => {
       </div>;
   }
 
-  // Vanlig användarvy (deltagare)
   return <div className="min-h-screen bg-background">
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-lg mx-auto animate-fade-in">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Säkerhets-SM Monitor
+              Security Championship Monitor
             </h1>
             <p className="text-muted-foreground">
-              Starta skärminspelning för att delta i den övervakade tävlingen
+              Start screen recording to participate in the monitored competition
             </p>
           </div>
 

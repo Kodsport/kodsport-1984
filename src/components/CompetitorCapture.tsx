@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
@@ -17,13 +16,11 @@ export const CompetitorCapture = () => {
   const { isCapturing, error, startTime, competitorId, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
 
-  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Deltagare';
+  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Participant';
 
-  // Broadcast devtools detection to admins
   const handleDevToolsDetected = useCallback(async () => {
     if (!room || !competitorId) return;
 
-    // Send Discord notification via edge function
     try {
       await supabase.functions.invoke('discord-alert', {
         body: {
@@ -37,7 +34,6 @@ export const CompetitorCapture = () => {
       console.error('Failed to send Discord alert:', err);
     }
 
-    // Also send realtime alert for in-app notifications
     const channel = supabase.channel('admin-alerts');
     await channel.subscribe();
     
@@ -50,11 +46,10 @@ export const CompetitorCapture = () => {
         competitorName: userName,
         room,
         timestamp: Date.now(),
-        message: `${userName} öppnade utvecklarverktyg (Inspect Element)`,
+        message: `${userName} opened developer tools (Inspect Element)`,
       },
     });
 
-    // Unsubscribe after sending
     setTimeout(() => supabase.removeChannel(channel), 1000);
   }, [room, competitorId, userName]);
 
@@ -62,7 +57,6 @@ export const CompetitorCapture = () => {
     onDetected: handleDevToolsDetected,
   });
 
-  // Timer effect
   useEffect(() => {
     if (!isCapturing || !startTime) {
       setElapsedTime(0);
@@ -94,14 +88,13 @@ export const CompetitorCapture = () => {
 
   return (
     <div className="space-y-6">
-      {/* DevTools Warning Alert */}
       {hasBeenOpened && (
         <Alert variant="destructive" className="border-destructive bg-destructive/10">
           <ShieldAlert className="h-5 w-5" />
-          <AlertTitle className="font-bold">Varning: Utvecklarverktyg upptäckta!</AlertTitle>
+          <AlertTitle className="font-bold">Warning: Developer tools detected!</AlertTitle>
           <AlertDescription className="mt-2">
-            <p>Användning av utvecklarverktyg (Inspect Element) är inte tillåtet under tävlingen.</p>
-            <p className="mt-1 font-medium">Denna händelse har loggats och kommer att granskas av tävlingsfunktionärer.</p>
+            <p>Using developer tools (Inspect Element) is not allowed during the competition.</p>
+            <p className="mt-1 font-medium">This event has been logged and will be reviewed by competition officials.</p>
           </AlertDescription>
         </Alert>
       )}
@@ -110,16 +103,15 @@ export const CompetitorCapture = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Camera className="h-5 w-5 text-primary" />
-            Skärmövervakning
+            Screen Monitoring
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Starta skärminspelning för att övervaka din session under tävlingen
+            Start screen recording to monitor your session during the competition
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!isCapturing ? (
             <>
-              {/* Visa användarnamn */}
               <div className="flex items-center gap-3 p-3 bg-secondary/50 rounded-lg border border-border">
                 <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="h-5 w-5 text-primary" />
@@ -132,7 +124,7 @@ export const CompetitorCapture = () => {
 
               <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
                 <DoorOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-foreground font-medium">Rum: {ROOM}</span>
+                <span className="text-sm text-foreground font-medium">Room: {ROOM}</span>
               </div>
 
               <Button
@@ -141,13 +133,13 @@ export const CompetitorCapture = () => {
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 golden-glow"
               >
                 <Monitor className="h-4 w-4 mr-2" />
-                Starta skärminspelning
+                Start Screen Recording
               </Button>
 
               <div className="text-xs text-muted-foreground space-y-1">
-                <p>• Din skärm kommer att fångas varje sekund</p>
-                <p>• Välj "Hela skärmen" för fullständig övervakning</p>
-                <p>• Håll denna flik öppen under tävlingen</p>
+                <p>• Your screen will be captured every second</p>
+                <p>• Select "Entire Screen" for full monitoring</p>
+                <p>• Keep this tab open during the competition</p>
               </div>
             </>
           ) : (
@@ -155,7 +147,7 @@ export const CompetitorCapture = () => {
               <div className="flex items-center justify-between p-4 bg-success/10 rounded-lg border border-success/20">
                 <div className="flex items-center gap-3">
                   <div className="h-3 w-3 bg-success rounded-full animate-pulse" />
-                  <span className="font-medium text-success">Inspelning aktiv</span>
+                  <span className="font-medium text-success">Recording active</span>
                 </div>
                 <span className="text-sm text-muted-foreground font-mono">
                   {formatTime(elapsedTime)}
@@ -168,11 +160,11 @@ export const CompetitorCapture = () => {
                 className="w-full"
               >
                 <MonitorOff className="h-4 w-4 mr-2" />
-                Stoppa inspelning
+                Stop Recording
               </Button>
 
               <p className="text-xs text-muted-foreground text-center">
-                Stäng inte detta fönster under tävlingen
+                Do not close this window during the competition
               </p>
             </div>
           )}
@@ -190,15 +182,15 @@ export const CompetitorCapture = () => {
         <CardHeader>
           <CardTitle className="text-sm text-foreground flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-success" />
-            Så här fungerar det
+            How it works
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-            <li>Välj ditt rum och klicka på "Starta skärminspelning"</li>
-            <li>Välj "Hela skärmen" i webbläsarens dialog</li>
-            <li>Håll denna flik öppen under hela tävlingen</li>
-            <li>Tävlingsfunktionärer kan övervaka alla deltagare i realtid samt granska efter tävling</li>
+            <li>Select your room and click "Start Screen Recording"</li>
+            <li>Choose "Entire Screen" in the browser dialog</li>
+            <li>Keep this tab open throughout the competition</li>
+            <li>Competition officials can monitor all participants in real-time and review after the competition</li>
           </ol>
         </CardContent>
       </Card>
