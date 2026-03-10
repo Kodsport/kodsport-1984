@@ -28,9 +28,9 @@ const Index = () => {
               <div className="flex justify-center mb-6">
                 <Logo />
               </div>
-              <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">
-                Säkerhets-SM
-              </h1>
+              <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">DU vågar inte fuska
+
+            </h1>
               <p className="text-muted-foreground text-sm">Tävlingsövervakning</p>
               
             </div>
