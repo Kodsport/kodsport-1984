@@ -25,7 +25,7 @@ export const AuthForm = () => {
 
     const result = isLogin
       ? await signIn(email, password)
-      : await signUp(email, password, name);
+      : await signUp(email, password, name, teamName);
 
     if (result.error) {
       setError(result.error.message);
