@@ -387,7 +387,7 @@ export const useScreenCapture = () => {
           competitorName: name,
           room: room || 'Unknown',
           timestamp: Date.now(),
-          message: `${name} stoppade sin skärminspelning`,
+          message: `${name} stopped their screen recording`,
         },
       });
 
