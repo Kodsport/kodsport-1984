@@ -14,56 +14,78 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  // List all files in the screenshots bucket
-  const { data: files, error: listError } = await supabase.storage
-    .from("screenshots")
-    .list("", { limit: 10000 });
-
-  if (listError) {
-    return new Response(JSON.stringify({ error: listError.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  // Files are in user_id/competitor_id/ folders, so we need to list recursively
-  // First get all top-level folders (user IDs)
   let totalDeleted = 0;
+  const BATCH = 100;
+  let hasMore = true;
 
-  for (const folder of files || []) {
-    if (folder.id) continue; // skip actual files at root
-    
-    const { data: subFolders } = await supabase.storage
+  while (hasMore) {
+    // Get a batch of file paths directly
+    const { data: objects, error } = await supabase
+      .from("objects" as any)
+      .select("name")
+      .eq("bucket_id", "screenshots")
+      .limit(BATCH);
+
+    // Fallback: use storage API to list from known user folders
+    // Actually, let's use the storage.remove which accepts paths
+    const { data: files } = await supabase.storage
       .from("screenshots")
-      .list(folder.name, { limit: 10000 });
+      .list("", { limit: BATCH });
 
-    for (const subFolder of subFolders || []) {
-      if (subFolder.id) {
-        // It's a file, delete it
-        await supabase.storage.from("screenshots").remove([`${folder.name}/${subFolder.name}`]);
+    if (!files || files.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    // These are top-level folders (user IDs)
+    for (const folder of files) {
+      if (folder.metadata) {
+        // It's a file at root level
+        await supabase.storage.from("screenshots").remove([folder.name]);
         totalDeleted++;
         continue;
       }
 
-      const { data: recordings } = await supabase.storage
+      // List contents of this user folder
+      const { data: subItems } = await supabase.storage
         .from("screenshots")
-        .list(`${folder.name}/${subFolder.name}`, { limit: 10000 });
+        .list(folder.name, { limit: 1000 });
 
-      if (recordings && recordings.length > 0) {
-        const paths = recordings.map(r => `${folder.name}/${subFolder.name}/${r.name}`);
-        const { error: removeError } = await supabase.storage.from("screenshots").remove(paths);
-        if (removeError) {
-          console.error(`Error removing files: ${removeError.message}`);
+      if (!subItems) continue;
+
+      for (const sub of subItems) {
+        if (sub.metadata) {
+          await supabase.storage.from("screenshots").remove([`${folder.name}/${sub.name}`]);
+          totalDeleted++;
+          continue;
         }
-        totalDeleted += paths.length;
+
+        // List recordings in competitor folder
+        const { data: recordings } = await supabase.storage
+          .from("screenshots")
+          .list(`${folder.name}/${sub.name}`, { limit: 1000 });
+
+        if (recordings && recordings.length > 0) {
+          // Batch delete in chunks of 100
+          for (let i = 0; i < recordings.length; i += 100) {
+            const batch = recordings.slice(i, i + 100);
+            const paths = batch.map(r => `${folder.name}/${sub.name}/${r.name}`);
+            await supabase.storage.from("screenshots").remove(paths);
+            totalDeleted += paths.length;
+          }
+        }
       }
     }
+
+    // Check if there are still files
+    const { data: remaining } = await supabase.storage
+      .from("screenshots")
+      .list("", { limit: 1 });
+    hasMore = !!(remaining && remaining.length > 0);
   }
 
-  // Also delete all screenshot records from the database
+  // Delete DB records
   const { error: dbError } = await supabase.from("screenshots").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-
-  // Delete all competitor records
   const { error: compError } = await supabase.from("competitors").delete().neq("id", "00000000-0000-0000-0000-000000000000");
 
   return new Response(
