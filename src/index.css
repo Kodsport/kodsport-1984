@@ -9,28 +9,28 @@
 
 @layer base {
   :root {
-    /* Dark theme by default - inspired by progolymp.se */
-    --background: 222 47% 11%;
-    --foreground: 210 40% 96%;
+    /* Dark theme - inspired by sakerhetssm.se */
+    --background: 200 30% 15%;
+    --foreground: 40 90% 55%;
 
-    --card: 222 47% 14%;
-    --card-foreground: 210 40% 96%;
+    --card: 200 28% 18%;
+    --card-foreground: 40 90% 55%;
 
-    --popover: 222 47% 12%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 200 30% 16%;
+    --popover-foreground: 40 90% 55%;
 
-    /* Golden accent - the signature progolymp color */
-    --primary: 40 85% 50%;
-    --primary-foreground: 222 47% 11%;
+    /* Orange/amber accent from sakerhetssm.se */
+    --primary: 35 90% 52%;
+    --primary-foreground: 200 30% 12%;
 
-    --secondary: 222 30% 20%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary: 200 25% 22%;
+    --secondary-foreground: 40 90% 55%;
 
-    --muted: 222 30% 18%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 200 25% 20%;
+    --muted-foreground: 200 15% 50%;
 
-    --accent: 40 85% 50%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 35 90% 52%;
+    --accent-foreground: 200 30% 12%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
@@ -39,31 +39,31 @@
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    --warning: 35 90% 52%;
+    --warning-foreground: 200 30% 12%;
 
-    --border: 222 30% 22%;
-    --input: 222 30% 22%;
-    --ring: 40 85% 50%;
+    --border: 200 20% 24%;
+    --input: 200 20% 24%;
+    --ring: 35 90% 52%;
 
     --radius: 0.5rem;
 
     /* Gradients */
-    --gradient-golden: linear-gradient(135deg, hsl(40, 85%, 50%), hsl(35, 90%, 55%));
-    --gradient-dark: linear-gradient(180deg, hsl(222, 47%, 14%), hsl(222, 47%, 8%));
+    --gradient-golden: linear-gradient(135deg, hsl(35, 90%, 52%), hsl(30, 95%, 57%));
+    --gradient-dark: linear-gradient(180deg, hsl(200, 30%, 18%), hsl(200, 30%, 10%));
     
     /* Shadows */
-    --shadow-glow: 0 0 20px hsla(40, 85%, 50%, 0.3);
+    --shadow-glow: 0 0 20px hsla(35, 90%, 52%, 0.3);
     --shadow-card: 0 4px 20px hsla(0, 0%, 0%, 0.4);
 
-    --sidebar-background: 222 47% 10%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 40 85% 50%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 222 30% 18%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 222 30% 22%;
-    --sidebar-ring: 40 85% 50%;
+    --sidebar-background: 200 30% 12%;
+    --sidebar-foreground: 40 90% 55%;
+    --sidebar-primary: 35 90% 52%;
+    --sidebar-primary-foreground: 200 30% 12%;
+    --sidebar-accent: 200 25% 20%;
+    --sidebar-accent-foreground: 40 90% 55%;
+    --sidebar-border: 200 20% 24%;
+    --sidebar-ring: 35 90% 52%;
   }
 }
 
