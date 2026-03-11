@@ -48,7 +48,7 @@ const Index = () => {
             </div>
 
             <p className="text-center text-xs text-muted-foreground mt-4">
-              Security Championship — Kodsport Sverige
+              Säkerhets-SM — Kodsport Sverige
             </p>
           </div>
         </div>
@@ -91,7 +91,7 @@ const Index = () => {
         <div className="max-w-lg mx-auto animate-fade-in">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Security Championship Monitor
+              Säkerhets-SM Monitor
             </h1>
             <p className="text-muted-foreground">
               Start screen recording to participate in the monitored competition
