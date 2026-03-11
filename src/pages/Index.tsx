@@ -37,7 +37,17 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <p className="text-center text-xs text-muted-foreground mt-6">
+            <div className="mt-6 p-4 rounded-lg border border-border bg-card/50 text-xs text-muted-foreground space-y-2">
+              <p className="font-semibold text-foreground">Privacy Policy</p>
+              <p>
+                All screen recordings and personal data collected during this competition are accessible only to Kodsport Sverige. No data is shared with any third parties.
+              </p>
+              <p>
+                All collected data, including recordings, screenshots, and account information, will be permanently deleted after the competition has concluded.
+              </p>
+            </div>
+
+            <p className="text-center text-xs text-muted-foreground mt-4">
               Security Championship — Kodsport Sverige
             </p>
           </div>
