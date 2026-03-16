@@ -48,7 +48,7 @@ const Index = () => {
             </div>
 
             <p className="text-center text-xs text-muted-foreground mt-4">
-              Säkerhets-SM — Kodsport Sverige
+              Programmeringsolympiaden — Kodsport Sverige
             </p>
           </div>
         </div>
