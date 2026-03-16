@@ -28,7 +28,7 @@ const Index = () => {
                 <Logo />
               </div>
               <h1 className="font-bold mb-2 text-destructive bg-inherit text-3xl">DON'T you dare cheat</h1>
-              <p className="text-muted-foreground text-sm">Competition Monitoring</p>
+              <p className="text-muted-foreground text-sm">Tävlingsövervakning</p>
             </div>
 
             <Card className="glass-panel card-elevated">
