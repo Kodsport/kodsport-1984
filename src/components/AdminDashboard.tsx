@@ -178,7 +178,7 @@ export const AdminDashboard = () => {
   const onlineCount = filteredCompetitors.filter((c) => c.status === 'online').length;
   const offlineCount = filteredCompetitors.filter((c) => c.status === 'offline').length;
 
-  const roomCounts = ROOMS.reduce((acc, room) => {
+  const roomCounts = roomNames.reduce((acc, room) => {
     const roomCompetitors = competitors.filter(c => c.room === room);
     acc[room] = {
       total: roomCompetitors.length,
