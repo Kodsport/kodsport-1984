@@ -245,7 +245,7 @@ export const AdminDashboard = () => {
               <Users className="h-4 w-4 mr-2" />
               All rooms ({competitors.length})
             </TabsTrigger>
-            {ROOMS.map((room) => (
+            {roomNames.map((room) => (
               <TabsTrigger 
                 key={room} 
                 value={room}
