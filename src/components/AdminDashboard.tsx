@@ -90,7 +90,7 @@ export const AdminDashboard = () => {
     });
     channelsRef.current = [];
 
-    ROOMS.forEach(room => {
+    roomNames.forEach(room => {
       const channel = supabase.channel(`live-screenshots-${room}`, {
         config: {
           broadcast: { self: false },
