@@ -371,27 +371,18 @@ export const useScreenCapture = () => {
     
     isRecordingRef.current = false;
 
-    // Broadcast stop event to admins via realtime (for in-app notifications)
-    if (notifyAdmins && state.competitorId && user) {
-      const name = user.user_metadata?.name || user.email?.split('@')[0] || 'Unknown';
-
-      const alertChannel = supabase.channel('admin-alerts');
-      await alertChannel.subscribe();
-      
-      alertChannel.send({
-        type: 'broadcast',
-        event: 'alert',
-        payload: {
-          type: 'stopped',
-          competitorId: state.competitorId,
-          competitorName: name,
-          room: room || 'Unknown',
-          timestamp: Date.now(),
-          message: `${name} stopped their screen recording`,
-        },
-      });
-
-      setTimeout(() => supabase.removeChannel(alertChannel), 1000);
+    // Notify admins via edge function (server-side broadcast, not spoofable)
+    if (notifyAdmins && state.competitorId) {
+      try {
+        await supabase.functions.invoke('discord-alert', {
+          body: {
+            type: 'stopped',
+            competitorId: state.competitorId,
+          },
+        });
+      } catch (err) {
+        console.error('Failed to send stop alert:', err);
+      }
     }
 
     // Unsubscribe from channel

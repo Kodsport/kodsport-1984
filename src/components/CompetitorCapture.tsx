@@ -20,39 +20,19 @@ export const CompetitorCapture = () => {
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Participant';
 
   const handleDevToolsDetected = useCallback(async () => {
-    if (!room || !competitorId) return;
+    if (!competitorId) return;
 
     try {
       await supabase.functions.invoke('discord-alert', {
         body: {
           type: 'devtools',
-          competitorName: userName,
-          room,
-          timestamp: new Date().toISOString(),
+          competitorId,
         },
       });
     } catch (err) {
       console.error('Failed to send Discord alert:', err);
     }
-
-    const channel = supabase.channel('admin-alerts');
-    await channel.subscribe();
-    
-    channel.send({
-      type: 'broadcast',
-      event: 'alert',
-      payload: {
-        type: 'devtools',
-        competitorId,
-        competitorName: userName,
-        room,
-        timestamp: Date.now(),
-        message: `${userName} opened developer tools (Inspect Element)`,
-      },
-    });
-
-    setTimeout(() => supabase.removeChannel(channel), 1000);
-  }, [room, competitorId, userName]);
+  }, [competitorId]);
 
   const { hasBeenOpened } = useDevToolsDetection({
     onDetected: handleDevToolsDetected,
