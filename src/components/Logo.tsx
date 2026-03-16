@@ -1,18 +1,17 @@
-import { Shield, Lock } from 'lucide-react';
+import { Code2 } from 'lucide-react';
 
 export const Logo = () => {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative">
-        <Shield className="h-8 w-8 text-primary" />
-        <Lock className="h-4 w-4 text-primary-foreground absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+      <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
+        <Code2 className="h-5 w-5 text-primary-foreground" />
       </div>
       <div className="flex flex-col">
         <span className="text-lg font-bold tracking-tight text-foreground">
-          Säkerhets
+          Programmerings
         </span>
         <span className="text-sm font-semibold text-primary -mt-1">
-          SM
+          olympiaden
         </span>
       </div>
     </div>

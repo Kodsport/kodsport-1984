@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/hooks/useAuth';
 import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
 import { supabase } from '@/integrations/supabase/client';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
 
-const ROOM = 'Kammaren';
+const ROOMS = ['Chalmers', 'KTH', 'LTH'] as const;
 
 export const CompetitorCapture = () => {
-  const [room] = useState(ROOM);
+  const [room, setRoom] = useState<string>(ROOMS[0]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const { isCapturing, error, startTime, competitorId, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
@@ -122,9 +123,21 @@ export const CompetitorCapture = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg border border-border">
-                <DoorOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-foreground font-medium">Room: {ROOM}</span>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <DoorOpen className="h-4 w-4 text-muted-foreground" />
+                  Select your room
+                </label>
+                <Select value={room} onValueChange={setRoom}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROOMS.map((r) => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button

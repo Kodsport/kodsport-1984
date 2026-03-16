@@ -91,7 +91,7 @@ const Index = () => {
         <div className="max-w-lg mx-auto animate-fade-in">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-foreground mb-2">
-              Säkerhets-SM Monitor
+              Programmeringsolympiaden Monitor
             </h1>
             <p className="text-muted-foreground">
               Start screen recording to participate in the monitored competition

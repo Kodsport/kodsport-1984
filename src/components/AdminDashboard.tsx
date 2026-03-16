@@ -18,7 +18,7 @@ interface CompetitorWithScreenshot extends Competitor {
   isLive?: boolean;
 }
 
-const ROOMS = ['Kammaren'] as const;
+const ROOMS = ['Chalmers', 'KTH', 'LTH'] as const;
 
 export const AdminDashboard = () => {
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);

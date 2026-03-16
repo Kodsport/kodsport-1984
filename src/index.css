@@ -2,35 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Säkerhets-SM Anti-Cheat Design System
-   Dark navy with golden accents */
+/* Programmeringsolympiaden Design System
+   Dark navy with gold accents — progolymp.se */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
-    /* Dark theme - inspired by sakerhetssm.se */
-    --background: 200 30% 15%;
-    --foreground: 40 90% 55%;
+    /* Dark navy theme inspired by progolymp.se */
+    --background: 214 50% 12%;
+    --foreground: 210 20% 90%;
 
-    --card: 200 28% 18%;
-    --card-foreground: 40 90% 55%;
+    --card: 214 45% 15%;
+    --card-foreground: 210 20% 90%;
 
-    --popover: 200 30% 16%;
-    --popover-foreground: 40 90% 55%;
+    --popover: 214 50% 13%;
+    --popover-foreground: 210 20% 90%;
 
-    /* Orange/amber accent from sakerhetssm.se */
-    --primary: 35 90% 52%;
-    --primary-foreground: 200 30% 12%;
+    /* Gold accent from progolymp.se: rgb(229,188,58) */
+    --primary: 46 78% 56%;
+    --primary-foreground: 214 50% 10%;
 
-    --secondary: 200 25% 22%;
-    --secondary-foreground: 40 90% 55%;
+    /* Blue accent: rgb(41,118,216) */
+    --secondary: 214 70% 50%;
+    --secondary-foreground: 210 20% 95%;
 
-    --muted: 200 25% 20%;
-    --muted-foreground: 200 15% 50%;
+    --muted: 214 40% 20%;
+    --muted-foreground: 214 15% 55%;
 
-    --accent: 35 90% 52%;
-    --accent-foreground: 200 30% 12%;
+    --accent: 214 70% 50%;
+    --accent-foreground: 210 20% 95%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
@@ -39,31 +40,31 @@
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     
-    --warning: 35 90% 52%;
-    --warning-foreground: 200 30% 12%;
+    --warning: 46 78% 56%;
+    --warning-foreground: 214 50% 10%;
 
-    --border: 200 20% 24%;
-    --input: 200 20% 24%;
-    --ring: 35 90% 52%;
+    --border: 214 30% 22%;
+    --input: 214 30% 22%;
+    --ring: 46 78% 56%;
 
     --radius: 0.5rem;
 
     /* Gradients */
-    --gradient-golden: linear-gradient(135deg, hsl(35, 90%, 52%), hsl(30, 95%, 57%));
-    --gradient-dark: linear-gradient(180deg, hsl(200, 30%, 18%), hsl(200, 30%, 10%));
+    --gradient-golden: linear-gradient(135deg, hsl(46, 78%, 56%), hsl(42, 85%, 62%));
+    --gradient-dark: linear-gradient(180deg, hsl(214, 50%, 15%), hsl(214, 50%, 8%));
     
     /* Shadows */
-    --shadow-glow: 0 0 20px hsla(35, 90%, 52%, 0.3);
+    --shadow-glow: 0 0 20px hsla(46, 78%, 56%, 0.3);
     --shadow-card: 0 4px 20px hsla(0, 0%, 0%, 0.4);
 
-    --sidebar-background: 200 30% 12%;
-    --sidebar-foreground: 40 90% 55%;
-    --sidebar-primary: 35 90% 52%;
-    --sidebar-primary-foreground: 200 30% 12%;
-    --sidebar-accent: 200 25% 20%;
-    --sidebar-accent-foreground: 40 90% 55%;
-    --sidebar-border: 200 20% 24%;
-    --sidebar-ring: 35 90% 52%;
+    --sidebar-background: 214 50% 10%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 46 78% 56%;
+    --sidebar-primary-foreground: 214 50% 10%;
+    --sidebar-accent: 214 40% 20%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 214 30% 22%;
+    --sidebar-ring: 46 78% 56%;
   }
 }
 
