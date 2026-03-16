@@ -265,6 +265,16 @@ export const AdminDashboard = () => {
 
           <div className="flex items-center gap-3">
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRoomManager(!showRoomManager)}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Rooms
+            </Button>
+
+            <Button
               variant={notificationPermission === 'granted' ? 'default' : 'outline'}
               size="sm"
               onClick={requestPermission}
@@ -288,6 +298,13 @@ export const AdminDashboard = () => {
               Updated {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: enUS })}
             </div>
           </div>
+        </div>
+
+        {showRoomManager && (
+          <div className="mt-4">
+            <RoomManager />
+          </div>
+        )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
