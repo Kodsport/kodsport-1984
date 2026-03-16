@@ -21,11 +21,13 @@ interface CompetitorWithScreenshot extends Competitor {
 }
 
 export const AdminDashboard = () => {
+  const { roomNames, loading: roomsLoading } = useRooms();
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);
   const [liveScreenshots, setLiveScreenshots] = useState<Map<string, string>>(new Map());
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
   const [viewingRecordings, setViewingRecordings] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
+  const [showRoomManager, setShowRoomManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const fetchingRef = useRef(false);
