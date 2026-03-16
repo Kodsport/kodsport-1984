@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from './StatusBadge';
 import { RecordingsViewer } from './RecordingsViewer';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
-import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
+import { useRooms } from '@/hooks/useRooms';
+import { RoomManager } from './RoomManager';
 
 type Competitor = Database['public']['Tables']['competitors']['Row'];
 
@@ -17,8 +19,6 @@ interface CompetitorWithScreenshot extends Competitor {
   latestScreenshot?: string | null;
   isLive?: boolean;
 }
-
-const ROOMS = ['Chalmers', 'KTH', 'LTH'] as const;
 
 export const AdminDashboard = () => {
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);

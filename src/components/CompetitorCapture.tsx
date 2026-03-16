@@ -128,12 +128,12 @@ export const CompetitorCapture = () => {
                   <DoorOpen className="h-4 w-4 text-muted-foreground" />
                   Select your room
                 </label>
-                <Select value={room} onValueChange={setRoom}>
+                <Select value={room} onValueChange={setRoom} disabled={roomsLoading}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select room" />
+                    <SelectValue placeholder={roomsLoading ? 'Loading rooms...' : 'Select room'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROOMS.map((r) => (
+                    {roomNames.map((r) => (
                       <SelectItem key={r} value={r}>{r}</SelectItem>
                     ))}
                   </SelectContent>
