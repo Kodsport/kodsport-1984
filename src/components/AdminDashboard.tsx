@@ -135,7 +135,7 @@ export const AdminDashboard = () => {
         supabase.removeChannel(channel);
       });
     };
-  }, []);
+  }, [roomNames]);
 
   useEffect(() => {
     fetchCompetitors();
