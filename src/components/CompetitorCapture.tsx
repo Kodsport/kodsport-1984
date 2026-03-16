@@ -8,11 +8,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
 import { supabase } from '@/integrations/supabase/client';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
-
-const ROOMS = ['Chalmers', 'KTH', 'LTH'] as const;
+import { useRooms } from '@/hooks/useRooms';
 
 export const CompetitorCapture = () => {
-  const [room, setRoom] = useState<string>(ROOMS[0]);
+  const [room, setRoom] = useState<string>('');
+  const { roomNames, loading: roomsLoading } = useRooms();
   const [elapsedTime, setElapsedTime] = useState(0);
   const { isCapturing, error, startTime, competitorId, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
@@ -128,12 +128,12 @@ export const CompetitorCapture = () => {
                   <DoorOpen className="h-4 w-4 text-muted-foreground" />
                   Select your room
                 </label>
-                <Select value={room} onValueChange={setRoom}>
+                <Select value={room} onValueChange={setRoom} disabled={roomsLoading}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select room" />
+                    <SelectValue placeholder={roomsLoading ? 'Loading rooms...' : 'Select room'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROOMS.map((r) => (
+                    {roomNames.map((r) => (
                       <SelectItem key={r} value={r}>{r}</SelectItem>
                     ))}
                   </SelectContent>

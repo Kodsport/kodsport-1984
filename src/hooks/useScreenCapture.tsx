@@ -236,7 +236,7 @@ export const useScreenCapture = () => {
     }, VIDEO_SEGMENT_DURATION_MS);
   }, [drawFrameToRecordingCanvas, uploadVideoSegment, state.isCapturing]);
 
-  const startCapture = async (room: string = 'Chalmers') => {
+  const startCapture = async (room: string) => {
     if (!user) {
       setState((prev) => ({ ...prev, error: 'Must be logged in to start capture' }));
       return;

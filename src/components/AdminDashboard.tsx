@@ -6,10 +6,12 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from './StatusBadge';
 import { RecordingsViewer } from './RecordingsViewer';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
-import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
+import { useRooms } from '@/hooks/useRooms';
+import { RoomManager } from './RoomManager';
 
 type Competitor = Database['public']['Tables']['competitors']['Row'];
 
@@ -18,14 +20,14 @@ interface CompetitorWithScreenshot extends Competitor {
   isLive?: boolean;
 }
 
-const ROOMS = ['Chalmers', 'KTH', 'LTH'] as const;
-
 export const AdminDashboard = () => {
+  const { roomNames, loading: roomsLoading } = useRooms();
   const [competitors, setCompetitors] = useState<CompetitorWithScreenshot[]>([]);
   const [liveScreenshots, setLiveScreenshots] = useState<Map<string, string>>(new Map());
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
   const [viewingRecordings, setViewingRecordings] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
+  const [showRoomManager, setShowRoomManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const fetchingRef = useRef(false);
@@ -88,7 +90,7 @@ export const AdminDashboard = () => {
     });
     channelsRef.current = [];
 
-    ROOMS.forEach(room => {
+    roomNames.forEach(room => {
       const channel = supabase.channel(`live-screenshots-${room}`, {
         config: {
           broadcast: { self: false },
@@ -133,7 +135,7 @@ export const AdminDashboard = () => {
         supabase.removeChannel(channel);
       });
     };
-  }, []);
+  }, [roomNames]);
 
   useEffect(() => {
     fetchCompetitors();
@@ -176,7 +178,7 @@ export const AdminDashboard = () => {
   const onlineCount = filteredCompetitors.filter((c) => c.status === 'online').length;
   const offlineCount = filteredCompetitors.filter((c) => c.status === 'offline').length;
 
-  const roomCounts = ROOMS.reduce((acc, room) => {
+  const roomCounts = roomNames.reduce((acc, room) => {
     const roomCompetitors = competitors.filter(c => c.room === room);
     acc[room] = {
       total: roomCompetitors.length,
@@ -243,7 +245,7 @@ export const AdminDashboard = () => {
               <Users className="h-4 w-4 mr-2" />
               All rooms ({competitors.length})
             </TabsTrigger>
-            {ROOMS.map((room) => (
+            {roomNames.map((room) => (
               <TabsTrigger 
                 key={room} 
                 value={room}
@@ -262,6 +264,16 @@ export const AdminDashboard = () => {
           </TabsList>
 
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRoomManager(!showRoomManager)}
+              className="gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Rooms
+            </Button>
+
             <Button
               variant={notificationPermission === 'granted' ? 'default' : 'outline'}
               size="sm"
@@ -287,6 +299,12 @@ export const AdminDashboard = () => {
             </div>
           </div>
         </div>
+
+        {showRoomManager && (
+          <div className="mt-4">
+            <RoomManager />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <Card className="glass-panel">
