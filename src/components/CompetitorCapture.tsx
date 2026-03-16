@@ -8,11 +8,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDevToolsDetection } from '@/hooks/useDevToolsDetection';
 import { supabase } from '@/integrations/supabase/client';
 import { Monitor, MonitorOff, AlertCircle, CheckCircle, Camera, DoorOpen, User, ShieldAlert } from 'lucide-react';
-
-const ROOMS = ['Chalmers', 'KTH', 'LTH'] as const;
+import { useRooms } from '@/hooks/useRooms';
 
 export const CompetitorCapture = () => {
-  const [room, setRoom] = useState<string>(ROOMS[0]);
+  const [room, setRoom] = useState<string>('');
+  const { roomNames, loading: roomsLoading } = useRooms();
   const [elapsedTime, setElapsedTime] = useState(0);
   const { isCapturing, error, startTime, competitorId, startCapture, stopCapture } = useScreenCapture();
   const { user } = useAuth();
