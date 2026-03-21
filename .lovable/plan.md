@@ -1,18 +1,24 @@
 
 
-## Make julia.martensson@ungvetenskapssport.se an Admin
+## Problem
 
-**User found:** `e4b52372-e6e9-4152-90f3-f5c719391dcb` — confirmed no existing role in `user_roles`.
+The admin dashboard query filters competitors to those seen in the last 24 hours (`last_seen >= 24h ago`). All 48 competitors have older `last_seen` timestamps, so the list is empty.
 
-### Action
-Run a single SQL insert via database migration tool:
+## Solution
 
-```sql
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('e4b52372-e6e9-4152-90f3-f5c719391dcb', 'admin');
-```
+Extend the time window or make it configurable. Two options:
 
-Then verify with a SELECT query to confirm the row exists.
+### Option A (Recommended): Show all competitors, remove the time filter
+Remove the `.gte('last_seen', oneDayAgo)` filter entirely so admins always see all competitors. The status column already indicates online/offline/inactive.
 
-That's it — one insert, one verification. No code changes needed.
+### Option B: Add a time filter dropdown
+Add a UI control letting admins choose the time range (1h, 24h, 7d, All).
+
+## Changes (Option A)
+
+**File: `src/components/AdminDashboard.tsx`**
+- Remove lines 43 and 48 (the `oneDayAgo` variable and the `.gte('last_seen', oneDayAgo)` filter)
+- This will show all competitors regardless of when they were last seen
+
+This is a 2-line change in a single file.
 
