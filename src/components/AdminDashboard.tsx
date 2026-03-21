@@ -27,6 +27,7 @@ export const AdminDashboard = () => {
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
   const [viewingRecordings, setViewingRecordings] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
+  const [timeFilter, setTimeFilter] = useState<string>('24h');
   const [showRoomManager, setShowRoomManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -40,10 +41,18 @@ export const AdminDashboard = () => {
     fetchingRef.current = true;
 
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('competitors')
-        .select('*')
-        .order('started_at', { ascending: false });
+        .select('*');
+
+      if (timeFilter !== 'all') {
+        const hoursMap: Record<string, number> = { '24h': 24, '48h': 48, '7d': 168 };
+        const hours = hoursMap[timeFilter] || 24;
+        const cutoff = new Date(Date.now() - hours * 3600000).toISOString();
+        query = query.gte('last_seen', cutoff);
+      }
+
+      const { data } = await query.order('started_at', { ascending: false });
 
       if (data) {
         const latestByUser = new Map<string, typeof data[0]>();
@@ -79,7 +88,7 @@ export const AdminDashboard = () => {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [liveScreenshots]);
+  }, [liveScreenshots, timeFilter]);
 
   useEffect(() => {
     channelsRef.current.forEach(channel => {
@@ -261,6 +270,20 @@ export const AdminDashboard = () => {
           </TabsList>
 
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-1">
+              {(['24h', '48h', '7d', 'all'] as const).map((filter) => (
+                <Button
+                  key={filter}
+                  variant={timeFilter === filter ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setTimeFilter(filter)}
+                  className="h-7 px-3 text-xs"
+                >
+                  {filter === 'all' ? 'All' : filter}
+                </Button>
+              ))}
+            </div>
+
             <Button
               variant="outline"
               size="sm"
