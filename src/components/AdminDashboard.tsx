@@ -41,10 +41,18 @@ export const AdminDashboard = () => {
     fetchingRef.current = true;
 
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('competitors')
-        .select('*')
-        .order('started_at', { ascending: false });
+        .select('*');
+
+      if (timeFilter !== 'all') {
+        const hoursMap: Record<string, number> = { '24h': 24, '48h': 48, '7d': 168 };
+        const hours = hoursMap[timeFilter] || 24;
+        const cutoff = new Date(Date.now() - hours * 3600000).toISOString();
+        query = query.gte('last_seen', cutoff);
+      }
+
+      const { data } = await query.order('started_at', { ascending: false });
 
       if (data) {
         const latestByUser = new Map<string, typeof data[0]>();
