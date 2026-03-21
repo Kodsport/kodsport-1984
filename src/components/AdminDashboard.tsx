@@ -40,12 +40,9 @@ export const AdminDashboard = () => {
     fetchingRef.current = true;
 
     try {
-      const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
-      
       const { data } = await supabase
         .from('competitors')
         .select('*')
-        .gte('last_seen', oneDayAgo)
         .order('started_at', { ascending: false });
 
       if (data) {
