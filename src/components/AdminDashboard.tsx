@@ -270,6 +270,20 @@ export const AdminDashboard = () => {
           </TabsList>
 
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-1">
+              {(['24h', '48h', '7d', 'all'] as const).map((filter) => (
+                <Button
+                  key={filter}
+                  variant={timeFilter === filter ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setTimeFilter(filter)}
+                  className="h-7 px-3 text-xs"
+                >
+                  {filter === 'all' ? 'All' : filter}
+                </Button>
+              ))}
+            </div>
+
             <Button
               variant="outline"
               size="sm"
