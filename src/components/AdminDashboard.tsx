@@ -27,6 +27,7 @@ export const AdminDashboard = () => {
   const [selectedCompetitor, setSelectedCompetitor] = useState<CompetitorWithScreenshot | null>(null);
   const [viewingRecordings, setViewingRecordings] = useState<CompetitorWithScreenshot | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
+  const [timeFilter, setTimeFilter] = useState<string>('24h');
   const [showRoomManager, setShowRoomManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
