@@ -88,7 +88,7 @@ export const AdminDashboard = () => {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [liveScreenshots]);
+  }, [liveScreenshots, timeFilter]);
 
   useEffect(() => {
     channelsRef.current.forEach(channel => {
