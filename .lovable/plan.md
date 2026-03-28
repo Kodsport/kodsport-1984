@@ -1,16 +1,18 @@
 
 
-## Plan: Disable Email Verification (Auto-Confirm Signups)
+## Make ellinor.ahlander@kodsport.se an Admin
 
-### What changes
-- Enable auto-confirm for email signups so users can sign in immediately without verifying their email
-- This eliminates the "email rate limit exceeded" problem entirely
+**User verified:** Ellinor Åhlander — `96634aea-fa3d-49f2-bc4a-80537a603788`. Confirmed no existing role in `user_roles`.
 
-### How
-1. Use `cloud--configure_auth` to enable `autoconfirm` for email signups
-2. No code changes needed — the signup flow already handles the post-signup state correctly
+### Action
+Single SQL insert via the insert tool:
 
-### Tradeoff
-- Users can sign up with any email (including fake ones) without verification
-- Can be re-enabled later when rate limits are no longer a concern
+```sql
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('96634aea-fa3d-49f2-bc4a-80537a603788', 'admin');
+```
+
+Then verify with a SELECT to confirm the row exists.
+
+One insert, one verification. No code changes needed.
 
