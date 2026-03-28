@@ -1,15 +1,15 @@
 
 
-## Make ellinor.ahlander@kodsport.se an Admin
+## Make ruth.risberg@kodsport.se an Admin
 
-**User verified:** Ellinor Åhlander — `96634aea-fa3d-49f2-bc4a-80537a603788`. Confirmed no existing role in `user_roles`.
+**User verified:** Ruth Risberg — `bd739dc0-336c-44fc-9f99-3ed1c28b3290`. Confirmed no existing role in `user_roles`.
 
 ### Action
-Single SQL insert via the insert tool:
+Single SQL insert:
 
 ```sql
 INSERT INTO public.user_roles (user_id, role)
-VALUES ('96634aea-fa3d-49f2-bc4a-80537a603788', 'admin');
+VALUES ('bd739dc0-336c-44fc-9f99-3ed1c28b3290', 'admin');
 ```
 
 Then verify with a SELECT to confirm the row exists.
