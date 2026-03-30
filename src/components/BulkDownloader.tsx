@@ -6,8 +6,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, Search, Loader2 } from 'lucide-react';
+import { Download, Search, Loader2, Archive } from 'lucide-react';
 import { format } from 'date-fns';
+import JSZip from 'jszip';
 
 interface UserEntry {
   user_id: string;
@@ -26,6 +27,7 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
   const [startAfter, setStartAfter] = useState('');
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [downloadMode, setDownloadMode] = useState<'files' | 'zip' | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
@@ -113,50 +115,56 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
     .filter(u => selected.has(u.user_id))
     .reduce((sum, u) => sum + u.segmentCount, 0);
 
-  const handleDownload = async () => {
+  const fetchSegments = async () => {
+    const { data: competitors } = await supabase
+      .from('competitors')
+      .select('id, user_id, name')
+      .in('user_id', Array.from(selected));
+
+    if (!competitors?.length) return null;
+
+    const competitorIds = competitors.map(c => c.id);
+    const competitorMap = new Map(competitors.map(c => [c.id, c]));
+
+    const isoFilter = startAfter ? new Date(startAfter).toISOString() : null;
+    let allScreenshots: { id: string; storage_path: string; captured_at: string; competitor_id: string }[] = [];
+    for (let i = 0; i < competitorIds.length; i += 50) {
+      const batch = competitorIds.slice(i, i + 50);
+      let query = supabase
+        .from('screenshots')
+        .select('id, storage_path, captured_at, competitor_id')
+        .in('competitor_id', batch)
+        .order('captured_at', { ascending: true })
+        .limit(1000);
+
+      if (isoFilter) query = query.gte('captured_at', isoFilter);
+      const { data } = await query;
+      if (data) allScreenshots = [...allScreenshots, ...data];
+    }
+
+    return { allScreenshots, competitorMap };
+  };
+
+  const makeFilename = (name: string, capturedAt: string, index: number) => {
+    const dateStr = format(new Date(capturedAt), 'yyyy-MM-dd-HH-mm');
+    return `${name}-${dateStr}-segment-${index + 1}.webm`;
+  };
+
+  const handleDownloadFiles = async () => {
     if (selected.size === 0) return;
     setDownloading(true);
+    setDownloadMode('files');
 
     try {
-      // Get all competitor IDs for selected users
-      const { data: competitors } = await supabase
-        .from('competitors')
-        .select('id, user_id, name')
-        .in('user_id', Array.from(selected));
-
-      if (!competitors?.length) return;
-
-      const competitorIds = competitors.map(c => c.id);
-      const competitorMap = new Map(competitors.map(c => [c.id, c]));
-
-      // Fetch all screenshots in batches (respecting 1000 row limit)
-      const isoFilter = startAfter ? new Date(startAfter).toISOString() : null;
-      let allScreenshots: { id: string; storage_path: string; captured_at: string; competitor_id: string }[] = [];
-      for (let i = 0; i < competitorIds.length; i += 50) {
-        const batch = competitorIds.slice(i, i + 50);
-        let query = supabase
-          .from('screenshots')
-          .select('id, storage_path, captured_at, competitor_id')
-          .in('competitor_id', batch)
-          .order('captured_at', { ascending: true })
-          .limit(1000);
-
-        if (isoFilter) {
-          query = query.gte('captured_at', isoFilter);
-        }
-
-        const { data } = await query;
-        if (data) allScreenshots = [...allScreenshots, ...data];
-      }
-
+      const result = await fetchSegments();
+      if (!result) return;
+      const { allScreenshots, competitorMap } = result;
       setProgress({ current: 0, total: allScreenshots.length });
 
-      // Download each segment
       for (let i = 0; i < allScreenshots.length; i++) {
         const screenshot = allScreenshots[i];
         const competitor = competitorMap.get(screenshot.competitor_id);
         const name = competitor?.name || 'unknown';
-        const dateStr = format(new Date(screenshot.captured_at), 'yyyy-MM-dd-HH-mm');
 
         try {
           const { data: signedData } = await supabase.storage
@@ -169,7 +177,7 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${name}-${dateStr}-segment-${i + 1}.webm`;
+            a.download = makeFilename(name, screenshot.captured_at, i);
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -180,14 +188,65 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
         }
 
         setProgress({ current: i + 1, total: allScreenshots.length });
-
-        // Stagger downloads
         if (i < allScreenshots.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
     } finally {
       setDownloading(false);
+      setDownloadMode(null);
+    }
+  };
+
+  const handleDownloadZip = async () => {
+    if (selected.size === 0) return;
+    setDownloading(true);
+    setDownloadMode('zip');
+
+    try {
+      const result = await fetchSegments();
+      if (!result) return;
+      const { allScreenshots, competitorMap } = result;
+      setProgress({ current: 0, total: allScreenshots.length });
+
+      const zip = new JSZip();
+
+      for (let i = 0; i < allScreenshots.length; i++) {
+        const screenshot = allScreenshots[i];
+        const competitor = competitorMap.get(screenshot.competitor_id);
+        const name = competitor?.name || 'unknown';
+
+        try {
+          const { data: signedData } = await supabase.storage
+            .from('screenshots')
+            .createSignedUrl(screenshot.storage_path, 300);
+
+          if (signedData?.signedUrl) {
+            const response = await fetch(signedData.signedUrl);
+            const blob = await response.blob();
+            const folder = zip.folder(name)!;
+            folder.file(makeFilename(name, screenshot.captured_at, i), blob);
+          }
+        } catch (err) {
+          console.error(`Failed to fetch segment ${i + 1}:`, err);
+        }
+
+        setProgress({ current: i + 1, total: allScreenshots.length });
+      }
+
+      setProgress({ current: -1, total: 0 }); // signal "Creating ZIP..."
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recordings-${format(new Date(), 'yyyy-MM-dd-HHmm')}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } finally {
+      setDownloading(false);
+      setDownloadMode(null);
     }
   };
 
@@ -272,10 +331,19 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
 
         {downloading && (
           <div className="space-y-2">
-            <Progress value={(progress.current / progress.total) * 100} />
-            <p className="text-xs text-muted-foreground text-center">
-              Downloading {progress.current} of {progress.total} segments...
-            </p>
+            {progress.current === -1 ? (
+              <>
+                <Progress value={100} />
+                <p className="text-xs text-muted-foreground text-center">Creating ZIP...</p>
+              </>
+            ) : (
+              <>
+                <Progress value={(progress.current / progress.total) * 100} />
+                <p className="text-xs text-muted-foreground text-center">
+                  {downloadMode === 'zip' ? 'Fetching' : 'Downloading'} {progress.current} of {progress.total} segments...
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -284,16 +352,29 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
             Cancel
           </Button>
           <Button
-            onClick={handleDownload}
+            onClick={handleDownloadFiles}
             disabled={selected.size === 0 || downloading}
+            variant="outline"
             className="gap-2"
           >
-            {downloading ? (
+            {downloading && downloadMode === 'files' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Download className="h-4 w-4" />
             )}
-            Download {totalSelectedSegments > 0 ? `(${totalSelectedSegments} segments)` : ''}
+            Files
+          </Button>
+          <Button
+            onClick={handleDownloadZip}
+            disabled={selected.size === 0 || downloading}
+            className="gap-2"
+          >
+            {downloading && downloadMode === 'zip' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Archive className="h-4 w-4" />
+            )}
+            ZIP {totalSelectedSegments > 0 ? `(${totalSelectedSegments})` : ''}
           </Button>
         </div>
       </DialogContent>
