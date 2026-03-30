@@ -1,32 +1,24 @@
 
 
-## Add "Start After" Timestamp Filter to Bulk Downloader
+## Add ZIP Download as Secondary Option
 
 ### Overview
-Add a datetime picker to the BulkDownloader that lets admins set a "competition start" timestamp. Only segments captured at or after that time will be included in the download. The filtering happens server-side via the Supabase query (`.gte('captured_at', timestamp)`), so segment counts and downloads both respect the cutoff.
+Keep the existing individual-file download and add a "Download as ZIP" option alongside it. Use `JSZip` to bundle segments into a single archive organized by user subfolder.
 
 ### Changes
 
+**Install dependency**: `jszip`
+
 **Modified: `src/components/BulkDownloader.tsx`**
+- Import `JSZip`
+- Replace the single download button with two buttons side by side:
+  - **"Download Files"** — existing behavior (individual staggered downloads)
+  - **"Download ZIP"** — new option that fetches all blobs, adds them to a JSZip instance organized as `{name}/{name}-{date-time}-segment-{n}.webm`, generates the archive, and triggers a single download named `recordings-{timestamp}.zip`
+- Both buttons share the same selection/filter logic and disable during any active download
+- Progress bar works for both modes; ZIP mode shows "Fetching segment X of Y..." then "Creating ZIP..."
 
-1. Add a `startAfter` state (ISO string or null) with a datetime-local input labeled "Only include segments after" (defaults to empty / no filter).
-
-2. When fetching user segment counts on load (and whenever `startAfter` changes), apply `.gte('captured_at', startAfter)` to the screenshots count query so displayed counts reflect the filter.
-
-3. When downloading, apply the same `.gte('captured_at', startAfter)` filter to the screenshots fetch query, ensuring only post-timestamp segments are fetched and downloaded.
-
-4. Update `totalSelectedSegments` to recalculate when `startAfter` changes (re-fetch counts or store per-user counts that respect the filter).
-
-5. Re-fetch user entries when the timestamp changes so segment counts update live.
-
-### UI Layout
-- Place the datetime input above the user list, below the search bar
-- Label: "Competition start (only segments after this time)"
-- Standard `<Input type="datetime-local" />` with a clear button
-- When set, segment counts next to each user update to reflect only post-cutoff segments
-
-### Technical Details
-- Server-side filtering: `.gte('captured_at', isoTimestamp)` on both the count query and the download query
-- The `datetime-local` input value is converted to ISO 8601 for the Supabase query
-- No database or RLS changes needed — just query parameter additions
+### Technical Notes
+- JSZip runs client-side; no backend changes needed
+- The existing `handleDownload` becomes `handleDownloadFiles`; new `handleDownloadZip` handles the ZIP path
+- Both respect the `startAfter` timestamp filter
 
