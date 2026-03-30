@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from './StatusBadge';
 import { RecordingsViewer } from './RecordingsViewer';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
-import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
+import { Users, Monitor, AlertTriangle, Eye, DoorOpen, RefreshCw, Video, Bell, BellOff, ChevronLeft, ChevronRight, Settings, Download } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
 import { useRooms } from '@/hooks/useRooms';
 import { RoomManager } from './RoomManager';
+import { BulkDownloader } from './BulkDownloader';
 
 type Competitor = Database['public']['Tables']['competitors']['Row'];
 
@@ -29,6 +30,7 @@ export const AdminDashboard = () => {
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('24h');
   const [showRoomManager, setShowRoomManager] = useState(false);
+  const [showBulkDownload, setShowBulkDownload] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const fetchingRef = useRef(false);
@@ -283,6 +285,16 @@ export const AdminDashboard = () => {
                 </Button>
               ))}
             </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowBulkDownload(true)}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Bulk Download
+            </Button>
 
             <Button
               variant="outline"
@@ -568,6 +580,9 @@ export const AdminDashboard = () => {
           userId={viewingRecordings.user_id}
           onClose={() => setViewingRecordings(null)}
         />
+      )}
+      {showBulkDownload && (
+        <BulkDownloader onClose={() => setShowBulkDownload(false)} />
       )}
     </div>
   );
