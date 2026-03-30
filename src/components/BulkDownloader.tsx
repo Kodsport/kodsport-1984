@@ -27,6 +27,7 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
   const [startAfter, setStartAfter] = useState('');
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [downloadMode, setDownloadMode] = useState<'files' | 'zip' | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
