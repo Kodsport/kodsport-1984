@@ -12,6 +12,7 @@ import { enUS } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
 import { useRooms } from '@/hooks/useRooms';
 import { RoomManager } from './RoomManager';
+import { BulkDownloader } from './BulkDownloader';
 
 type Competitor = Database['public']['Tables']['competitors']['Row'];
 
@@ -29,6 +30,7 @@ export const AdminDashboard = () => {
   const [selectedRoom, setSelectedRoom] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('24h');
   const [showRoomManager, setShowRoomManager] = useState(false);
+  const [showBulkDownload, setShowBulkDownload] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const fetchingRef = useRef(false);
