@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,29 @@ interface BulkDownloaderProps {
   onClose: () => void;
 }
 
+const CONCURRENCY = 6;
+
+async function pooledMap<T, R>(
+  items: T[],
+  fn: (item: T, index: number) => Promise<R>,
+  concurrency: number,
+  onDone?: () => void,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+      onDone?.();
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
 export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -29,11 +52,11 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
   const [downloading, setDownloading] = useState(false);
   const [downloadMode, setDownloadMode] = useState<'files' | 'zip' | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const progressRef = useRef(0);
 
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
-      // Get all competitors
       const { data: competitors } = await supabase
         .from('competitors')
         .select('id, user_id, name');
@@ -44,7 +67,6 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
         return;
       }
 
-      // Deduplicate by user_id, keep latest name
       const userMap = new Map<string, { name: string; competitorIds: string[] }>();
       competitors.forEach(c => {
         const existing = userMap.get(c.user_id);
@@ -55,22 +77,27 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
         }
       });
 
-      // Get segment counts per user (with optional timestamp filter)
       const isoFilter = startAfter ? new Date(startAfter).toISOString() : null;
-      const entries: UserEntry[] = [];
-      for (const [user_id, { name, competitorIds }] of userMap) {
-        let query = supabase
-          .from('screenshots')
-          .select('*', { count: 'exact', head: true })
-          .in('competitor_id', competitorIds);
 
-        if (isoFilter) {
-          query = query.gte('captured_at', isoFilter);
-        }
+      // Parallel count fetching
+      const userEntries = Array.from(userMap.entries());
+      const counts = await Promise.all(
+        userEntries.map(async ([, { competitorIds }]) => {
+          let query = supabase
+            .from('screenshots')
+            .select('*', { count: 'exact', head: true })
+            .in('competitor_id', competitorIds);
+          if (isoFilter) query = query.gte('captured_at', isoFilter);
+          const { count } = await query;
+          return count || 0;
+        })
+      );
 
-        const { count } = await query;
-        entries.push({ user_id, name, segmentCount: count || 0 });
-      }
+      const entries: UserEntry[] = userEntries.map(([user_id, { name }], i) => ({
+        user_id,
+        name,
+        segmentCount: counts[i],
+      }));
 
       entries.sort((a, b) => a.name.localeCompare(b.name));
       setUsers(entries);
@@ -115,7 +142,7 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
     .filter(u => selected.has(u.user_id))
     .reduce((sum, u) => sum + u.segmentCount, 0);
 
-  const fetchSegments = async () => {
+  const fetchSegmentsWithUrls = async () => {
     const { data: competitors } = await supabase
       .from('competitors')
       .select('id, user_id, name')
@@ -136,13 +163,29 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
         .in('competitor_id', batch)
         .order('captured_at', { ascending: true })
         .limit(1000);
-
       if (isoFilter) query = query.gte('captured_at', isoFilter);
       const { data } = await query;
       if (data) allScreenshots = [...allScreenshots, ...data];
     }
 
-    return { allScreenshots, competitorMap };
+    // Batch sign URLs (50 at a time)
+    const signedUrlMap = new Map<string, string>();
+    const paths = allScreenshots.map(s => s.storage_path);
+    for (let i = 0; i < paths.length; i += 50) {
+      const batch = paths.slice(i, i + 50);
+      const { data } = await supabase.storage
+        .from('screenshots')
+        .createSignedUrls(batch, 600);
+      if (data) {
+        data.forEach(item => {
+          if (item.signedUrl && !item.error) {
+            signedUrlMap.set(item.path!, item.signedUrl);
+          }
+        });
+      }
+    }
+
+    return { allScreenshots, competitorMap, signedUrlMap };
   };
 
   const makeFilename = (name: string, capturedAt: string, index: number) => {
@@ -154,44 +197,44 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
     if (selected.size === 0) return;
     setDownloading(true);
     setDownloadMode('files');
+    progressRef.current = 0;
 
     try {
-      const result = await fetchSegments();
+      const result = await fetchSegmentsWithUrls();
       if (!result) return;
-      const { allScreenshots, competitorMap } = result;
+      const { allScreenshots, competitorMap, signedUrlMap } = result;
       setProgress({ current: 0, total: allScreenshots.length });
 
-      for (let i = 0; i < allScreenshots.length; i++) {
-        const screenshot = allScreenshots[i];
-        const competitor = competitorMap.get(screenshot.competitor_id);
-        const name = competitor?.name || 'unknown';
+      await pooledMap(
+        allScreenshots,
+        async (screenshot, i) => {
+          const competitor = competitorMap.get(screenshot.competitor_id);
+          const name = competitor?.name || 'unknown';
+          const url = signedUrlMap.get(screenshot.storage_path);
 
-        try {
-          const { data: signedData } = await supabase.storage
-            .from('screenshots')
-            .createSignedUrl(screenshot.storage_path, 300);
-
-          if (signedData?.signedUrl) {
-            const response = await fetch(signedData.signedUrl);
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = makeFilename(name, screenshot.captured_at, i);
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 2000);
+          if (url) {
+            try {
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const objUrl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = objUrl;
+              a.download = makeFilename(name, screenshot.captured_at, i);
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+            } catch (err) {
+              console.error(`Failed to download segment ${i + 1}:`, err);
+            }
           }
-        } catch (err) {
-          console.error(`Failed to download segment ${i + 1}:`, err);
-        }
-
-        setProgress({ current: i + 1, total: allScreenshots.length });
-        if (i < allScreenshots.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
+        },
+        CONCURRENCY,
+        () => {
+          progressRef.current++;
+          setProgress(p => ({ ...p, current: progressRef.current }));
+        },
+      );
     } finally {
       setDownloading(false);
       setDownloadMode(null);
@@ -202,39 +245,42 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
     if (selected.size === 0) return;
     setDownloading(true);
     setDownloadMode('zip');
+    progressRef.current = 0;
 
     try {
-      const result = await fetchSegments();
+      const result = await fetchSegmentsWithUrls();
       if (!result) return;
-      const { allScreenshots, competitorMap } = result;
+      const { allScreenshots, competitorMap, signedUrlMap } = result;
       setProgress({ current: 0, total: allScreenshots.length });
 
       const zip = new JSZip();
 
-      for (let i = 0; i < allScreenshots.length; i++) {
-        const screenshot = allScreenshots[i];
-        const competitor = competitorMap.get(screenshot.competitor_id);
-        const name = competitor?.name || 'unknown';
+      await pooledMap(
+        allScreenshots,
+        async (screenshot, i) => {
+          const competitor = competitorMap.get(screenshot.competitor_id);
+          const name = competitor?.name || 'unknown';
+          const url = signedUrlMap.get(screenshot.storage_path);
 
-        try {
-          const { data: signedData } = await supabase.storage
-            .from('screenshots')
-            .createSignedUrl(screenshot.storage_path, 300);
-
-          if (signedData?.signedUrl) {
-            const response = await fetch(signedData.signedUrl);
-            const blob = await response.blob();
-            const folder = zip.folder(name)!;
-            folder.file(makeFilename(name, screenshot.captured_at, i), blob);
+          if (url) {
+            try {
+              const response = await fetch(url);
+              const blob = await response.blob();
+              const folder = zip.folder(name)!;
+              folder.file(makeFilename(name, screenshot.captured_at, i), blob);
+            } catch (err) {
+              console.error(`Failed to fetch segment ${i + 1}:`, err);
+            }
           }
-        } catch (err) {
-          console.error(`Failed to fetch segment ${i + 1}:`, err);
-        }
+        },
+        CONCURRENCY,
+        () => {
+          progressRef.current++;
+          setProgress(p => ({ ...p, current: progressRef.current }));
+        },
+      );
 
-        setProgress({ current: i + 1, total: allScreenshots.length });
-      }
-
-      setProgress({ current: -1, total: 0 }); // signal "Creating ZIP..."
+      setProgress({ current: -1, total: 0 });
       const zipBlob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
