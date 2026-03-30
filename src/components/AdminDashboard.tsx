@@ -581,6 +581,9 @@ export const AdminDashboard = () => {
           onClose={() => setViewingRecordings(null)}
         />
       )}
+      {showBulkDownload && (
+        <BulkDownloader onClose={() => setShowBulkDownload(false)} />
+      )}
     </div>
   );
 };
