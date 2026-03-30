@@ -23,18 +23,21 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
   const [users, setUsers] = useState<UserEntry[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+  const [startAfter, setStartAfter] = useState('');
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
     const fetchUsers = async () => {
+      setLoading(true);
       // Get all competitors
       const { data: competitors } = await supabase
         .from('competitors')
         .select('id, user_id, name');
 
       if (!competitors?.length) {
+        setUsers([]);
         setLoading(false);
         return;
       }
@@ -50,14 +53,20 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
         }
       });
 
-      // Get segment counts per user
+      // Get segment counts per user (with optional timestamp filter)
+      const isoFilter = startAfter ? new Date(startAfter).toISOString() : null;
       const entries: UserEntry[] = [];
       for (const [user_id, { name, competitorIds }] of userMap) {
-        const { count } = await supabase
+        let query = supabase
           .from('screenshots')
           .select('*', { count: 'exact', head: true })
           .in('competitor_id', competitorIds);
 
+        if (isoFilter) {
+          query = query.gte('captured_at', isoFilter);
+        }
+
+        const { count } = await query;
         entries.push({ user_id, name, segmentCount: count || 0 });
       }
 
@@ -67,7 +76,7 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
     };
 
     fetchUsers();
-  }, []);
+  }, [startAfter]);
 
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase())
@@ -121,16 +130,22 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
       const competitorMap = new Map(competitors.map(c => [c.id, c]));
 
       // Fetch all screenshots in batches (respecting 1000 row limit)
+      const isoFilter = startAfter ? new Date(startAfter).toISOString() : null;
       let allScreenshots: { id: string; storage_path: string; captured_at: string; competitor_id: string }[] = [];
       for (let i = 0; i < competitorIds.length; i += 50) {
         const batch = competitorIds.slice(i, i + 50);
-        const { data } = await supabase
+        let query = supabase
           .from('screenshots')
           .select('id, storage_path, captured_at, competitor_id')
           .in('competitor_id', batch)
           .order('captured_at', { ascending: true })
           .limit(1000);
 
+        if (isoFilter) {
+          query = query.gte('captured_at', isoFilter);
+        }
+
+        const { data } = await query;
         if (data) allScreenshots = [...allScreenshots, ...data];
       }
 
@@ -194,6 +209,25 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
             onChange={e => setSearch(e.target.value)}
             className="pl-9"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-foreground">
+            Competition start (only segments after this time)
+          </label>
+          <div className="flex gap-2">
+            <Input
+              type="datetime-local"
+              value={startAfter}
+              onChange={e => setStartAfter(e.target.value)}
+              className="flex-1"
+            />
+            {startAfter && (
+              <Button variant="ghost" size="sm" onClick={() => setStartAfter('')}>
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
 
         {loading ? (
