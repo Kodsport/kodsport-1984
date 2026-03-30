@@ -211,6 +211,25 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
           />
         </div>
 
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-foreground">
+            Competition start (only segments after this time)
+          </label>
+          <div className="flex gap-2">
+            <Input
+              type="datetime-local"
+              value={startAfter}
+              onChange={e => setStartAfter(e.target.value)}
+              className="flex-1"
+            />
+            {startAfter && (
+              <Button variant="ghost" size="sm" onClick={() => setStartAfter('')}>
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
