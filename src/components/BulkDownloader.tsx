@@ -130,16 +130,22 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
       const competitorMap = new Map(competitors.map(c => [c.id, c]));
 
       // Fetch all screenshots in batches (respecting 1000 row limit)
+      const isoFilter = startAfter ? new Date(startAfter).toISOString() : null;
       let allScreenshots: { id: string; storage_path: string; captured_at: string; competitor_id: string }[] = [];
       for (let i = 0; i < competitorIds.length; i += 50) {
         const batch = competitorIds.slice(i, i + 50);
-        const { data } = await supabase
+        let query = supabase
           .from('screenshots')
           .select('id, storage_path, captured_at, competitor_id')
           .in('competitor_id', batch)
           .order('captured_at', { ascending: true })
           .limit(1000);
 
+        if (isoFilter) {
+          query = query.gte('captured_at', isoFilter);
+        }
+
+        const { data } = await query;
         if (data) allScreenshots = [...allScreenshots, ...data];
       }
 
