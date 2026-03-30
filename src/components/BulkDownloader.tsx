@@ -331,10 +331,19 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
 
         {downloading && (
           <div className="space-y-2">
-            <Progress value={(progress.current / progress.total) * 100} />
-            <p className="text-xs text-muted-foreground text-center">
-              Downloading {progress.current} of {progress.total} segments...
-            </p>
+            {progress.current === -1 ? (
+              <>
+                <Progress value={100} />
+                <p className="text-xs text-muted-foreground text-center">Creating ZIP...</p>
+              </>
+            ) : (
+              <>
+                <Progress value={(progress.current / progress.total) * 100} />
+                <p className="text-xs text-muted-foreground text-center">
+                  {downloadMode === 'zip' ? 'Fetching' : 'Downloading'} {progress.current} of {progress.total} segments...
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -343,16 +352,29 @@ export const BulkDownloader = ({ onClose }: BulkDownloaderProps) => {
             Cancel
           </Button>
           <Button
-            onClick={handleDownload}
+            onClick={handleDownloadFiles}
             disabled={selected.size === 0 || downloading}
+            variant="outline"
             className="gap-2"
           >
-            {downloading ? (
+            {downloading && downloadMode === 'files' ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Download className="h-4 w-4" />
             )}
-            Download {totalSelectedSegments > 0 ? `(${totalSelectedSegments} segments)` : ''}
+            Files
+          </Button>
+          <Button
+            onClick={handleDownloadZip}
+            disabled={selected.size === 0 || downloading}
+            className="gap-2"
+          >
+            {downloading && downloadMode === 'zip' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Archive className="h-4 w-4" />
+            )}
+            ZIP {totalSelectedSegments > 0 ? `(${totalSelectedSegments})` : ''}
           </Button>
         </div>
       </DialogContent>
