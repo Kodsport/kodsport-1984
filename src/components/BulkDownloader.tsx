@@ -6,8 +6,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Download, Search, Loader2 } from 'lucide-react';
+import { Download, Search, Loader2, Archive } from 'lucide-react';
 import { format } from 'date-fns';
+import JSZip from 'jszip';
 
 interface UserEntry {
   user_id: string;
